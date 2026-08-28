@@ -12,8 +12,13 @@ typedef struct
     UINT32 BlockSize;
 } BLOCK_DEVICE;
 
+typedef INTN (*BLOCK_READ_FN)(VOID *Context, UINT64 Lba, UINTN NumBlocks, UINT8 *Buffer);
+
+
 EFI_STATUS BlockDeviceInit(BLOCK_DEVICE *Dev, EFI_BLOCK_IO *BlockIo, UINT64 StartLba);
 EFI_STATUS BlockDeviceRead(BLOCK_DEVICE *Dev, UINT64 Lba, UINTN NumBlocks, UINT8 *Buffer);
+
+INTN DiskIoReadCallback(VOID *Context, UINT64 Lba, UINTN NumBlocks, UINT8 *Buffer);
 
 
 #endif

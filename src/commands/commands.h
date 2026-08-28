@@ -4,11 +4,11 @@
 #include <efi.h>
 #include <efilib.h>
 
-#include "blockdev.h"
+#include "../dshell/fsparse.h"
 #include "../dshell/pager.h"
 #include "../includes/wrapper.h"
+#include "blockdev.h"
 #include "textlines.h"
-
 
 typedef EFI_STATUS (*COMMAND_FN)(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv);
 
@@ -25,6 +25,7 @@ EFI_STATUS CmdListDisks(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv);
 EFI_STATUS CmdListParts(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv);
 EFI_STATUS CmdClear(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv);
 EFI_STATUS CmdHelp(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv);
+EFI_STATUS CmdFat32Test(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv);
 EFI_STATUS ShutDown(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv);
 
 BOOLEAN IsValidNumber(CHAR16 *Str);

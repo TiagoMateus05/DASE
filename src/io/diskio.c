@@ -42,3 +42,10 @@ EFI_STATUS BlockDeviceRead(BLOCK_DEVICE *Dev, UINT64 Lba, UINTN NumBlocks, UINT8
         BufferSize,
         Buffer);
 }
+
+INTN DiskIoReadCallback(VOID *Context, UINT64 Lba, UINTN NumBlocks, UINT8 *Buffer)
+{
+    BLOCK_DEVICE *Dev = (BLOCK_DEVICE *)Context;
+    EFI_STATUS Status = BlockDeviceRead(Dev, Lba, NumBlocks, Buffer);
+    return EFI_ERROR(Status) ? -1 : 0;
+}

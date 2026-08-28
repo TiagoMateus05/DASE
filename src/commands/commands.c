@@ -6,6 +6,7 @@ CONST COMMAND gCommands[] = {
     {L"clear", CmdClear},
     {L"help", CmdHelp},
     {L"exit", ShutDown},
+    {L"fat32test", CmdFat32Test},
 };
 CONST UINTN gCommandCount = sizeof(gCommands) / sizeof(gCommands[0]);
 

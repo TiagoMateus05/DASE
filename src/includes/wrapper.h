@@ -15,7 +15,7 @@
 #define ReadKeyStroke(in, key) uefi_call_wrapper((in)->ReadKeyStroke, 2, (in), (key))
 
 // Memory Pool
-#define FreePool(bs, mem) uefi_call_wrapper((bs)->FreePool, 1, (mem))
+#define FreePoolBS(bs, mem) uefi_call_wrapper((bs)->FreePool, 1, (mem))
 
 // src/panic.c — backend for Rust's panic handler (src/parser/src/lib.rs).
 VOID dase_ffi_init(EFI_SYSTEM_TABLE *SystemTable);

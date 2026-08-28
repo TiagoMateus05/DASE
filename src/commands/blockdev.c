@@ -44,7 +44,7 @@ EFI_STATUS ListDisks(SHELL_CONTEXT *Ctx)
     if (DiskNum == 0)
         EFISPrint(Ctx->ST->ConOut, L"No physical disks found\r\n");
 
-    FreePool(Ctx->ST->BootServices, HandleBuffer);
+    FreePoolBS(Ctx->ST->BootServices, HandleBuffer);
     return EFI_SUCCESS;
 }
 
@@ -80,7 +80,7 @@ EFI_STATUS FindDiskByIndex(SHELL_CONTEXT *Ctx, UINTN TargetIndex, EFI_BLOCK_IO *
         if (DiskNum == TargetIndex)
         {
             *OutHandle = HandleBuffer[Index];
-            FreePool(Ctx->ST->BootServices, HandleBuffer);
+            FreePoolBS(Ctx->ST->BootServices, HandleBuffer);
             return EFI_SUCCESS;
         }
         DiskNum++;
@@ -90,7 +90,7 @@ EFI_STATUS FindDiskByIndex(SHELL_CONTEXT *Ctx, UINTN TargetIndex, EFI_BLOCK_IO *
     SPrint(line, sizeof(line), L"No physical disks found with index: %ld\r\n", TargetIndex);
     EFISPrint(Ctx->ST->ConOut, line);
 
-    FreePool(Ctx->ST->BootServices, HandleBuffer);
+    FreePoolBS(Ctx->ST->BootServices, HandleBuffer);
     return EFI_NOT_FOUND;
 }
 
@@ -144,7 +144,7 @@ EFI_STATUS ListPartitions(SHELL_CONTEXT *Ctx, UINTN DiskNumber)
 
     if (EFI_ERROR(Status))
     {
-        FreePool(Ctx->ST->BootServices, HandleBuffer);
+        FreePoolBS(Ctx->ST->BootServices, HandleBuffer);
         return Status;
     }
 
@@ -154,7 +154,7 @@ EFI_STATUS ListPartitions(SHELL_CONTEXT *Ctx, UINTN DiskNumber)
 
     if (EFI_ERROR(Status))
     {
-        FreePool(Ctx->ST->BootServices, HandleBuffer);
+        FreePoolBS(Ctx->ST->BootServices, HandleBuffer);
         return Status;
     }
 
@@ -193,6 +193,6 @@ EFI_STATUS ListPartitions(SHELL_CONTEXT *Ctx, UINTN DiskNumber)
         PartNum++;
     }
 
-    FreePool(Ctx->ST->BootServices, HandleBuffer);
+    FreePoolBS(Ctx->ST->BootServices, HandleBuffer);
     return EFI_SUCCESS;
 }
