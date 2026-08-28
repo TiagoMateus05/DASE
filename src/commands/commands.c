@@ -1,10 +1,16 @@
 #include "commands.h"
 
 CONST COMMAND gCommands[] = {
-    {L"help", CmdHelp},
-    {L"exit", ShutDown},
+    {L"listdisks"   , CmdListDisks  },
+    {L"help"        , CmdHelp       },
+    {L"exit"        , ShutDown      },
 };
 CONST UINTN gCommandCount = sizeof(gCommands) / sizeof(gCommands[0]);
+
+EFI_STATUS CmdListDisks(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
+{
+    return ListDisks(Ctx);
+}
 
 EFI_STATUS CmdHelp(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
 {

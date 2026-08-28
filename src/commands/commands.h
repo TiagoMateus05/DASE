@@ -21,6 +21,7 @@ typedef struct
 extern CONST COMMAND gCommands[];
 extern CONST UINTN gCommandCount;
 
+EFI_STATUS CmdListDisks(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv);
 EFI_STATUS CmdHelp(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv);
 EFI_STATUS ShutDown(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv);
 
