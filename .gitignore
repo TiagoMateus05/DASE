@@ -1,0 +1,12 @@
+# MAC Env
+.DS_Store
+
+#Env
+.env/
+
+# Build output
+build/
+
+
+.vscode
+include/

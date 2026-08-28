@@ -1,0 +1,6 @@
+# Match the C side's -fpic: the final EFI binary is linked as a single
+# `-shared -Bsymbolic` object (see top-level Makefile), so every input
+# object — Rust included — must be position-independent or `ld` will
+# reject its relocations.
+[build]
+rustflags = ["-C", "relocation-model=pic"]
