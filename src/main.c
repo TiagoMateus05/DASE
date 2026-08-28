@@ -5,7 +5,7 @@
 #include "includes/credits.h"
 #include "includes/wrapper.h"
 
-VOID setConsoleMode(EFI_SYSTEM_TABLE *ST)
+VOID SetConsoleMode(EFI_SYSTEM_TABLE *ST)
 {
     UINTN columns, rows;
     UINTN bestMode = 0;
@@ -33,7 +33,7 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *ST)
 
     uefi_call_wrapper(ST->BootServices->SetWatchdogTimer, 4, 0, 0, 0, NULL);
 
-    setConsoleMode(ST);
+    SetConsoleMode(ST);
     // ClearScreen(ST->ConOut);
     SetAttribute(ST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLACK));
 

@@ -37,11 +37,13 @@ EFI_STATUS ReadLine(EFI_SYSTEM_TABLE *ST, CHAR16 *buf, UINTN bufSize)
 
         if (key.UnicodeChar == CHAR_CARRIAGE_RETURN)
             break;
-        else if (pos > 0 && key.UnicodeChar == CHAR_BACKSPACE)
+        else if (key.UnicodeChar == CHAR_BACKSPACE)
         {
-            EFISPrint(ST->ConOut, L"\b \b");
-            pos--;
-        }
+            if (pos > 0)
+            {
+                EFISPrint(ST->ConOut, L"\b \b");
+                pos--;
+            }        }
         else if (pos < bufSize - 1)
         {
             buf[pos++] = key.UnicodeChar;
