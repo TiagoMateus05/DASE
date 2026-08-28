@@ -14,6 +14,9 @@
 #define WaitForKey(st, index) uefi_call_wrapper((st)->BootServices->WaitForEvent, 3, 1, &(st)->ConIn->WaitForKey, (index))
 #define ReadKeyStroke(in, key) uefi_call_wrapper((in)->ReadKeyStroke, 2, (in), (key))
 
+// Memory Pool
+#define FreePool(bs, mem) uefi_call_wrapper((bs)->FreePool, 1, (mem))
+
 // src/panic.c — backend for Rust's panic handler (src/parser/src/lib.rs).
 VOID dase_ffi_init(EFI_SYSTEM_TABLE *SystemTable);
 VOID dase_report_error(const CHAR8 *msg, UINTN len);

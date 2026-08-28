@@ -108,6 +108,8 @@ EFI_STATUS Dispatch(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
             return gCommands[i].Run(Ctx, Argc, Argv);
         }
     }
-    EFISPrint(Ctx->ST->ConOut, L"Unknown command\r\n");
+    EFISPrint(Ctx->ST->ConOut, L"Unknown command: ");
+    EFISPrint(Ctx->ST->ConOut, Argv[0]);
+    EFISPrint(Ctx->ST->ConOut, L"\r\n");
     return EFI_NOT_FOUND;
 }
