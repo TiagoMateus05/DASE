@@ -4,6 +4,8 @@
 #include <efi.h>
 #include <efilib.h>
 
+#include "shellcontext.h"
+
 #include "../commands/blockdev.h"
 #include "../commands/commands.h"
 #include "../includes/wrapper.h"

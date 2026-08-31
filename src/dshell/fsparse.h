@@ -2,6 +2,7 @@
 #define _FSPARSE_H_
 
 #include "../commands/blockdev.h"
+#include "../dshell/shellcontext.h"
 #include "../io/diskio.h"
 #include <efi.h>
 
@@ -34,7 +35,6 @@ typedef struct
     UINT32 RootCluster;
     UINT32 DataStartLba;
 } FAT32_DEBUG_INFO;
-
 
 extern UINTN fat32_handle_size(VOID);
 

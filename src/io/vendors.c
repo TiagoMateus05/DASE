@@ -1,5 +1,17 @@
 #include "vendors.h"
 
+#define PCI_CLASS_MASS_STORAGE 0x01
+#define PCI_CLASS_SERIAL_BUS   0x0C
+
+#define PCI_SUB_SCSI 0x00
+#define PCI_SUB_IDE  0x01
+#define PCI_SUB_RAID 0x04
+#define PCI_SUB_SATA 0x06
+#define PCI_SUB_SAS  0x07
+#define PCI_SUB_NVM  0x08
+#define PCI_SUB_USB  0x03   // within class 0x0C
+
+
 // PCI-SIG assigned vendor IDs. This identifies the CONTROLLER silicon,
 // not the drive. Drive make/model requires IDENTIFY DEVICE.
 STATIC CONST PCI_VENDOR gPciVendors[] = {
@@ -2474,4 +2486,39 @@ STATIC CONST CHAR16 *PciVendorName(UINT16 Id)
         if (gPciVendors[i].Id == Id)
             return gPciVendors[i].Name;
     return L"Unknown";
+}
+
+DISK_TRANSPORT ClassifyTransport(UINT8 Class, UINT8 Sub, UINT8 ProgIF)
+{
+    if (Class == PCI_CLASS_MASS_STORAGE)
+    {
+        switch (Sub)
+        {
+            case PCI_SUB_SATA: return DISK_TRANSPORT_SATA;
+            case PCI_SUB_NVM:  return DISK_TRANSPORT_NVME;
+            case PCI_SUB_IDE:  return DISK_TRANSPORT_IDE;
+            case PCI_SUB_RAID: return DISK_TRANSPORT_RAID;
+            case PCI_SUB_SAS:  return DISK_TRANSPORT_SAS;
+            case PCI_SUB_SCSI: return DISK_TRANSPORT_SAS;
+            default:           return DISK_TRANSPORT_UNKNOWN;
+        }
+    }
+    if (Class == PCI_CLASS_SERIAL_BUS && Sub == PCI_SUB_USB)
+        return DISK_TRANSPORT_USB;
+
+    return DISK_TRANSPORT_UNKNOWN;
+}
+
+CONST CHAR16 *TransportName(DISK_TRANSPORT T)
+{
+    switch (T)
+    {
+        case DISK_TRANSPORT_SATA: return L"SATA/AHCI";
+        case DISK_TRANSPORT_NVME: return L"NVMe";
+        case DISK_TRANSPORT_IDE:  return L"IDE";
+        case DISK_TRANSPORT_SAS:  return L"SAS/HBA";
+        case DISK_TRANSPORT_USB:  return L"USB bridge";
+        case DISK_TRANSPORT_RAID: return L"RAID <-- ENABLE IT/HBA MODE";
+        default:                  return L"UNCLASSIFIED";
+    }
 }

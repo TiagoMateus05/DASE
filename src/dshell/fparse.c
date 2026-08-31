@@ -11,8 +11,6 @@ VOID Fat32NameToChar16(FAT32_DIR_ENTRY *Entry, CHAR16 *Out)
 EFI_STATUS CmdFat32Test(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
 {
     EFI_STATUS Status;
-    EFI_BLOCK_IO *BlockIo;
-    EFI_HANDLE Handle;
     BLOCK_DEVICE Dev;
     UINT8 Sector0[512];
     FAT32_DIR_ENTRY Entries[16];
@@ -20,12 +18,17 @@ EFI_STATUS CmdFat32Test(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
     CHAR16 line[300];
     CHAR16 nameBuf[MAX_NAME_LEN + 1];
     UINT8 FsHandle[256];
+    DISK *Disk;
 
-    Status = FindDiskByIndex(Ctx, 0, &BlockIo, &Handle);
+    Status = BuildDiskTable(Ctx);
     if (EFI_ERROR(Status))
         return Status;
 
-    Status = BlockDeviceInit(&Dev, BlockIo, 0);
+    Status = FindDiskByIndex(Ctx, 0, &Disk);
+    if (EFI_ERROR(Status))
+        return Status;
+
+    Status = BlockDeviceInit(&Dev, Disk->BlockIo, 0);
     if (EFI_ERROR(Status))
         return Status;
 

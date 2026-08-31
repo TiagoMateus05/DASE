@@ -4,6 +4,7 @@
 #include <efi.h>
 #include <efilib.h>
 
+#include "../dshell/shellcontext.h"
 #include "../dshell/fsparse.h"
 #include "../dshell/pager.h"
 #include "../includes/wrapper.h"

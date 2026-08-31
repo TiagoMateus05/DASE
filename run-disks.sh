@@ -10,12 +10,41 @@ mk() {  # mk <name> <size>
     [ -f "$f" ] || { echo "creating $f ($2)"; qemu-img create -f raw "$f" "$2" >/dev/null; }
 }
 
+# Partitioned test images. Built once; delete the file to rebuild.
+mk_gpt() {
+    local f="$DISKS/gpt.img"
+    [ -f "$f" ] && return
+    echo "creating $f (GPT, 3 partitions)"
+    qemu-img create -f raw "$f" 1G >/dev/null
+    sgdisk -n 1:0:+200M -t 1:ef00 -c 1:"EFI System" \
+           -n 2:0:+300M -t 2:0700 -c 2:"Data1" \
+           -n 3:0:0     -t 3:0700 -c 3:"Data2" \
+           "$f" >/dev/null
+}
+
+mk_mbr() {
+    local f="$DISKS/mbr.img"
+    [ -f "$f" ] && return
+    echo "creating $f (MBR, 2 partitions)"
+    qemu-img create -f raw "$f" 512M >/dev/null
+    # macOS has no sfdisk; use the build container's.
+    docker run --rm -v "$(pwd):/work" dase-build bash -c "
+        sfdisk /work/$f >/dev/null <<'PART'
+label: dos
+,200M,0c
+,,0c
+PART
+"
+}
+
 mk hdd_big    2G
 mk hdd_small  512M
 mk ssd        1G
 mk nvme       4G
 mk usb        256M
 mk raid       1G
+mk_gpt
+mk_mbr
 
 qemu-system-x86_64 \
   -M q35 -m 512 \
@@ -36,6 +65,13 @@ qemu-system-x86_64 \
   `# --- SATA SSD (rotation_rate=1 == non-rotating) ---` \
   -drive if=none,id=ssd0,format=raw,file="$DISKS/ssd.img" \
   -device ide-hd,drive=ssd0,bus=ide.3,rotation_rate=1,serial=SSD-SATA-0001,model=DASE_TEST_SSD_1G \
+  \
+  `# --- partitioned test disks (SATA) ---` \
+  -drive if=none,id=gpt0,format=raw,file="$DISKS/gpt.img" \
+  -device ide-hd,drive=gpt0,bus=ide.4,serial=GPT-PARTS-0001,model=DASE_TEST_GPT_1G \
+  \
+  -drive if=none,id=mbr0,format=raw,file="$DISKS/mbr.img" \
+  -device ide-hd,drive=mbr0,bus=ide.5,serial=MBR-PARTS-0001,model=DASE_TEST_MBR_512M \
   \
   `# --- NVMe ---` \
   -drive if=none,id=nvme0,format=raw,file="$DISKS/nvme.img" \

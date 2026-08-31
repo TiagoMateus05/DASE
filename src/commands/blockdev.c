@@ -1,4 +1,6 @@
 #include "blockdev.h"
+#include "../dshell/shellcontext.h"
+
 
 // PCI config space offsets (PCI Local Bus Spec, Type 0 header)
 #define PCI_CFG_ID_REG 0x00     // [15:0] VendorID, [31:16] DeviceID
@@ -20,159 +22,122 @@
 
 EFI_STATUS ListDisks(SHELL_CONTEXT *Ctx)
 {
+    CHAR16 line[160];
     EFI_STATUS Status;
-    EFI_HANDLE *HandleBuffer;
-    UINTN HandleCount;
-    UINTN Index;
-    UINTN DiskNum = 0;
-    CHAR16 line[128];
 
-    Status = uefi_call_wrapper(Ctx->ST->BootServices->LocateHandleBuffer, 5, ByProtocol, &BlockIoProtocol, NULL,
-                               &HandleCount, &HandleBuffer);
+    Status = BuildDiskTable(Ctx);
     if (EFI_ERROR(Status))
     {
-        EFISPrint(Ctx->ST->ConOut, L"No Block Devices Found\n\r");
+        EFISPrint(Ctx->ST->ConOut, L"No Block Devices Found\r\n");
         return Status;
     }
 
-    for (Index = 0; Index < HandleCount; Index++)
+    if (Ctx->DiskCount == 0)
     {
-        EFI_BLOCK_IO *BlockIo;
-
-        Status = uefi_call_wrapper(
-            Ctx->ST->BootServices->HandleProtocol, 3,
-            HandleBuffer[Index], &BlockIoProtocol, (VOID **)&BlockIo);
-        if (EFI_ERROR(Status))
-            continue;
-
-        if (BlockIo->Media->LogicalPartition)
-            continue;
-
-        UINT64 SizeMB = ((BlockIo->Media->LastBlock + 1) * (UINT64)BlockIo->Media->BlockSize) / (1024 * 1024);
-        UINT64 SizeGB = ((BlockIo->Media->LastBlock + 1) * (UINT64)BlockIo->Media->BlockSize) / (1024 * 1024 * 1024);
-        SPrint(line, sizeof(line),
-               L"disk%d  BlockSize=%d  LastBlock=%ld  SizeMB=%ld SizeGB=%ld  Removable=%s\r\n",
-               DiskNum, BlockIo->Media->BlockSize, BlockIo->Media->LastBlock, SizeMB, SizeGB,
-               BlockIo->Media->RemovableMedia ? L"Yes" : L"No");
-        EFISPrint(Ctx->ST->ConOut, line);
-
-        DiskNum++;
+        EFISPrint(Ctx->ST->ConOut, L"No physical disks found\r\n");
+        return EFI_SUCCESS;
     }
 
-    if (DiskNum == 0)
-        EFISPrint(Ctx->ST->ConOut, L"No physical disks found\r\n");
+    for (UINTN i = 0; i < Ctx->DiskCount; i++)
+    {
+        DISK *D = &Ctx->Disks[i];
+        UINT64 Bytes = (D->LastBlock + 1) * (UINT64)D->BlockSize;
 
-    FreePoolBS(Ctx->ST->BootServices, HandleBuffer);
+        SPrint(line, sizeof(line),
+               L"disk%d  BlockSize=%d  LastBlock=%ld  SizeMB=%ld  SizeGB=%ld  Removable=%s\r\n",
+               (UINTN)D->Index, (UINTN)D->BlockSize, D->LastBlock,
+               Bytes / (1024 * 1024), Bytes / (1024 * 1024 * 1024),
+               D->RemovableMedia ? L"Yes" : L"No");
+        EFISPrint(Ctx->ST->ConOut, line);
+    }
     return EFI_SUCCESS;
 }
 
-EFI_STATUS FindDiskByIndex(SHELL_CONTEXT *Ctx, UINTN TargetIndex, EFI_BLOCK_IO **OutBlockIo, EFI_HANDLE *OutHandle)
+EFI_STATUS FindDiskByIndex(SHELL_CONTEXT *Ctx, UINTN TargetIndex, DISK **OutDisk)
 {
-    EFI_STATUS Status;
-    EFI_HANDLE *HandleBuffer;
-    UINTN HandleCount;
-    UINTN Index;
-    UINTN DiskNum = 0;
+    CHAR16 line[80];
 
-    Status = uefi_call_wrapper(Ctx->ST->BootServices->LocateHandleBuffer, 5, ByProtocol, &BlockIoProtocol, NULL,
-                               &HandleCount, &HandleBuffer);
-    if (EFI_ERROR(Status))
+    if (Ctx->DiskCount == 0)
     {
-        EFISPrint(Ctx->ST->ConOut, L"No Block Devices Found\n\r");
-        return Status;
+        EFISPrint(Ctx->ST->ConOut, L"Disk table not built\r\n");
+        return EFI_NOT_READY;
     }
 
-    for (Index = 0; Index < HandleCount; Index++)
+    if (TargetIndex >= Ctx->DiskCount)
     {
-
-        Status = uefi_call_wrapper(
-            Ctx->ST->BootServices->HandleProtocol, 3,
-            HandleBuffer[Index], &BlockIoProtocol, (VOID *)OutBlockIo);
-
-        if (EFI_ERROR(Status))
-            continue;
-
-        if ((*OutBlockIo)->Media->LogicalPartition)
-            continue;
-
-        if (DiskNum == TargetIndex)
-        {
-            *OutHandle = HandleBuffer[Index];
-            FreePoolBS(Ctx->ST->BootServices, HandleBuffer);
-            return EFI_SUCCESS;
-        }
-        DiskNum++;
+        SPrint(line, sizeof(line),
+               L"No physical disk with index: %ld\r\n", TargetIndex);
+        EFISPrint(Ctx->ST->ConOut, line);
+        return EFI_NOT_FOUND;
     }
-    CHAR16 line[128];
 
-    SPrint(line, sizeof(line), L"No physical disks found with index: %ld\r\n", TargetIndex);
-    EFISPrint(Ctx->ST->ConOut, line);
-
-    FreePoolBS(Ctx->ST->BootServices, HandleBuffer);
-    return EFI_NOT_FOUND;
+    *OutDisk = &Ctx->Disks[TargetIndex];
+    return EFI_SUCCESS;
 }
 
-BOOLEAN IsPartitionOfDisk(EFI_DEVICE_PATH_PROTOCOL *DiskPath, EFI_DEVICE_PATH_PROTOCOL *CandidatePath)
+BOOLEAN IsPartitionOfDisk(EFI_DEVICE_PATH_PROTOCOL *DiskPath,
+                          EFI_DEVICE_PATH_PROTOCOL *CandidatePath)
 {
     EFI_DEVICE_PATH_PROTOCOL *Disk = DiskPath;
-    EFI_DEVICE_PATH_PROTOCOL *Candidate = CandidatePath;
+    EFI_DEVICE_PATH_PROTOCOL *Cand = CandidatePath;
+
+    if (Disk == NULL || Cand == NULL)
+        return FALSE;
 
     while (!IsDevicePathEnd(Disk))
     {
-        if (IsDevicePathEnd(Candidate) && !IsDevicePathEnd(Disk))
+        if (IsDevicePathEnd(Cand))
             return FALSE;
-
-        if (DevicePathNodeLength(Disk) != DevicePathNodeLength(Candidate))
+        if (DevicePathNodeLength(Disk) != DevicePathNodeLength(Cand))
             return FALSE;
-
-        if (CompareMem(Disk, Candidate, DevicePathNodeLength(Disk)) != 0)
+        if (CompareMem(Disk, Cand, DevicePathNodeLength(Disk)) != 0)
             return FALSE;
 
         Disk = NextDevicePathNode(Disk);
-        Candidate = NextDevicePathNode(Candidate);
+        Cand = NextDevicePathNode(Cand);
     }
 
-    if (IsDevicePathEnd(Candidate) && IsDevicePathEnd(Disk))
+    if (IsDevicePathEnd(Cand))
         return FALSE;
-    else
-        return TRUE;
+
+    if (DevicePathType(Cand) != MEDIA_DEVICE_PATH ||
+        DevicePathSubType(Cand) != MEDIA_HARDDRIVE_DP)
+        return FALSE;
+
+    return TRUE;
+
 }
 
 EFI_STATUS ListPartitions(SHELL_CONTEXT *Ctx, UINTN DiskNumber)
 {
     EFI_STATUS Status;
-    EFI_BLOCK_IO *TargetDisk;
+    DISK *Target;
     EFI_HANDLE *HandleBuffer;
-    EFI_HANDLE DiskHandle;
-    EFI_DEVICE_PATH_PROTOCOL *DiskPath;
     UINTN HandleCount;
     UINTN Index;
     UINTN PartNum = 0;
     CHAR16 line[128];
 
-    Status = uefi_call_wrapper(Ctx->ST->BootServices->LocateHandleBuffer, 5, ByProtocol, &BlockIoProtocol, NULL,
+    Status = BuildDiskTable(Ctx);
+    if (EFI_ERROR(Status))
+        return Status;
+
+    Status = FindDiskByIndex(Ctx, DiskNumber, &Target);
+    if (EFI_ERROR(Status))
+        return Status;
+
+    if (Target->DevicePath == NULL)
+    {
+        EFISPrint(Ctx->ST->ConOut, L"Disk has no device path\r\n");
+        return EFI_NOT_FOUND;
+    }
+
+    Status = uefi_call_wrapper(Ctx->ST->BootServices->LocateHandleBuffer, 5,
+                               ByProtocol, &BlockIoProtocol, NULL,
                                &HandleCount, &HandleBuffer);
     if (EFI_ERROR(Status))
     {
-        EFISPrint(Ctx->ST->ConOut, L"No Block Devices Found\n\r");
-        return Status;
-    }
-
-    Status = FindDiskByIndex(Ctx, DiskNumber, &TargetDisk, &DiskHandle);
-
-    if (EFI_ERROR(Status))
-    {
-        FreePoolBS(Ctx->ST->BootServices, HandleBuffer);
-        return Status;
-    }
-
-    Status = uefi_call_wrapper(
-        Ctx->ST->BootServices->HandleProtocol, 3,
-        DiskHandle, &DevicePathProtocol, (VOID **)&DiskPath);
-
-    if (EFI_ERROR(Status))
-    {
-        FreePoolBS(Ctx->ST->BootServices, HandleBuffer);
+        EFISPrint(Ctx->ST->ConOut, L"No Block Devices Found\r\n");
         return Status;
     }
 
@@ -197,7 +162,7 @@ EFI_STATUS ListPartitions(SHELL_CONTEXT *Ctx, UINTN DiskNumber)
         if (EFI_ERROR(Status))
             continue;
 
-        if (!IsPartitionOfDisk(DiskPath, PartPath))
+        if (!IsPartitionOfDisk(Target->DevicePath, PartPath))
             continue;
 
         UINT64 SizeMB = ((BlockIo->Media->LastBlock + 1) * (UINT64)BlockIo->Media->BlockSize) / (1024 * 1024);
@@ -215,51 +180,56 @@ EFI_STATUS ListPartitions(SHELL_CONTEXT *Ctx, UINTN DiskNumber)
     return EFI_SUCCESS;
 }
 
-STATIC CONST CHAR16 *ClassifyController(UINT8 Class, UINT8 Sub, UINT8 ProgIF)
+EFI_STATUS ListDiskInfo(SHELL_CONTEXT *Ctx)
 {
-    if (Class == PCI_CLASS_MASS_STORAGE)
-    {
-        switch (Sub)
-        {
-            case PCI_SUB_SATA:
-                return (ProgIF == 0x01) ? L"SATA/AHCI" : L"SATA";
-            case PCI_SUB_NVM:
-                return (ProgIF == 0x02) ? L"NVMe" : L"NVM";
-            case PCI_SUB_IDE:
-                return L"IDE";
-            case PCI_SUB_RAID:
-                return L"RAID  <-- ENABLE IT/HBA MODE";
-            case PCI_SUB_SAS:
-                return L"SAS/HBA";
-            case PCI_SUB_SCSI:
-                return L"SCSI/HBA";
-            default:
-                return L"Storage (unknown)";
-        }
-    }
-    if (Class == PCI_CLASS_SERIAL_BUS && Sub == PCI_SUB_USB)
-        return L"USB bridge";
+    CHAR16 line[200];
+    EFI_STATUS Status;
 
-    return L"Unknown";
+    Status = BuildDiskTable(Ctx);
+    if (EFI_ERROR(Status))
+    {
+        EFISPrint(Ctx->ST->ConOut, L"No Block Devices Found\r\n");
+        return Status;
+    }
+
+    for (UINTN i = 0; i < Ctx->DiskCount; i++)
+    {
+        DISK *CurrentDisk = &Ctx->Disks[i];
+
+        SPrint(line, sizeof(line),
+               L"disk%d  %-14s %04x:%04x  sub %04x:%04x  Class=%02x Sub=%02x PI=%02x  [%s]\r\n",
+               (UINTN)CurrentDisk->Index, PciVendorName(CurrentDisk->PciVendorId),
+               (UINTN)CurrentDisk->PciVendorId, (UINTN)CurrentDisk->PciDeviceId,
+               (UINTN)CurrentDisk->PciSubsysVendorId, (UINTN)CurrentDisk->PciSubsysId,
+               (UINTN)CurrentDisk->PciClass, (UINTN)CurrentDisk->PciSubclass, (UINTN)CurrentDisk->PciProgIF,
+               TransportName(CurrentDisk->Transport));
+        EFISPrint(Ctx->ST->ConOut, line);
+    }
+
+    if (Ctx->DiskCount == 0)
+        EFISPrint(Ctx->ST->ConOut, L"No physical disks found\r\n");
+
+    return EFI_SUCCESS;
 }
 
-EFI_STATUS ListDiskInfo(SHELL_CONTEXT *Ctx)
+EFI_STATUS BuildDiskTable(SHELL_CONTEXT *Ctx)
 {
     EFI_STATUS Status;
     EFI_HANDLE *HandleBuffer;
     UINTN HandleCount;
     UINTN Index;
     UINTN DiskNum = 0;
-    CHAR16 line[160];
+
+    // Full rebuild every time: a stale entry means wipe could target the
+    // wrong device after a hot-plug.
+    ZeroMem(Ctx->Disks, sizeof(Ctx->Disks));
+    Ctx->DiskCount = 0;
 
     Status = uefi_call_wrapper(Ctx->ST->BootServices->LocateHandleBuffer, 5,
                                ByProtocol, &BlockIoProtocol, NULL,
                                &HandleCount, &HandleBuffer);
     if (EFI_ERROR(Status))
-    {
-        EFISPrint(Ctx->ST->ConOut, L"No Block Devices Found\r\n");
         return Status;
-    }
 
     for (Index = 0; Index < HandleCount; Index++)
     {
@@ -268,7 +238,10 @@ EFI_STATUS ListDiskInfo(SHELL_CONTEXT *Ctx)
         EFI_HANDLE PciHandle;
         EFI_PCI_IO_PROTOCOL *PciIo;
         UINT32 IdReg = 0, ClassReg = 0, SubsysReg = 0;
-        UINT8 Class, Sub, ProgIF;
+        DISK *CurrentDisk;
+
+        if (DiskNum >= MAX_DISKS)
+            break;
 
         Status = uefi_call_wrapper(Ctx->ST->BootServices->HandleProtocol, 3,
                                    HandleBuffer[Index], &BlockIoProtocol,
@@ -279,27 +252,39 @@ EFI_STATUS ListDiskInfo(SHELL_CONTEXT *Ctx)
         if (BlockIo->Media->LogicalPartition)
             continue;
 
+        CurrentDisk = &Ctx->Disks[DiskNum];
+
+        CurrentDisk->Index = DiskNum;
+        CurrentDisk->Handle = HandleBuffer[Index];
+        CurrentDisk->BlockIo = BlockIo;
+
+        CurrentDisk->MediaId = BlockIo->Media->MediaId;
+        CurrentDisk->BlockSize = BlockIo->Media->BlockSize;
+        CurrentDisk->IoAlign = BlockIo->Media->IoAlign;
+        CurrentDisk->LastBlock = BlockIo->Media->LastBlock;
+        CurrentDisk->MediaPresent = BlockIo->Media->MediaPresent;
+        CurrentDisk->ReadOnly = BlockIo->Media->ReadOnly;
+        CurrentDisk->RemovableMedia = BlockIo->Media->RemovableMedia;
+
+        CurrentDisk->Transport = DISK_TRANSPORT_UNKNOWN;
+
         // --- resolve the PCI controller behind this disk ---
         Status = uefi_call_wrapper(Ctx->ST->BootServices->HandleProtocol, 3,
                                    HandleBuffer[Index], &DevicePathProtocol,
                                    (VOID **)&DiskPath);
         if (EFI_ERROR(Status))
         {
-            SPrint(line, sizeof(line),
-                   L"disk%d  <no device path>  UNCLASSIFIED\r\n", DiskNum);
-            EFISPrint(Ctx->ST->ConOut, line);
             DiskNum++;
             continue;
         }
+
+        CurrentDisk->DevicePath = DiskPath;
 
         WalkPath = DiskPath;
         Status = uefi_call_wrapper(Ctx->ST->BootServices->LocateDevicePath, 3,
                                    &PciIoProtocol, &WalkPath, &PciHandle);
         if (EFI_ERROR(Status))
         {
-            SPrint(line, sizeof(line),
-                   L"disk%d  <no PCI ancestor>  UNCLASSIFIED\r\n", DiskNum);
-            EFISPrint(Ctx->ST->ConOut, line);
             DiskNum++;
             continue;
         }
@@ -308,13 +293,11 @@ EFI_STATUS ListDiskInfo(SHELL_CONTEXT *Ctx)
                                    PciHandle, &PciIoProtocol, (VOID **)&PciIo);
         if (EFI_ERROR(Status))
         {
-            SPrint(line, sizeof(line),
-                   L"disk%d  <no PciIo on ancestor>  UNCLASSIFIED\r\n", DiskNum);
-            EFISPrint(Ctx->ST->ConOut, line);
             DiskNum++;
             continue;
         }
 
+        // Count is in units of Width, so one 32-bit read == Count 1.
         uefi_call_wrapper(PciIo->Pci.Read, 5, PciIo,
                           EfiPciIoWidthUint32, PCI_CFG_ID_REG, 1, &IdReg);
         uefi_call_wrapper(PciIo->Pci.Read, 5, PciIo,
@@ -322,26 +305,20 @@ EFI_STATUS ListDiskInfo(SHELL_CONTEXT *Ctx)
         uefi_call_wrapper(PciIo->Pci.Read, 5, PciIo,
                           EfiPciIoWidthUint32, PCI_CFG_SUBSYS_REG, 1, &SubsysReg);
 
-        ProgIF = (UINT8)((ClassReg >> 8) & 0xFF);
-        Sub = (UINT8)((ClassReg >> 16) & 0xFF);
-        Class = (UINT8)((ClassReg >> 24) & 0xFF);
+        CurrentDisk->PciVendorId = (UINT16)(IdReg & 0xFFFF);
+        CurrentDisk->PciDeviceId = (UINT16)((IdReg >> 16) & 0xFFFF);
+        CurrentDisk->PciSubsysVendorId = (UINT16)(SubsysReg & 0xFFFF);
+        CurrentDisk->PciSubsysId = (UINT16)((SubsysReg >> 16) & 0xFFFF);
+        CurrentDisk->PciProgIF = (UINT8)((ClassReg >> 8) & 0xFF);
+        CurrentDisk->PciSubclass = (UINT8)((ClassReg >> 16) & 0xFF);
+        CurrentDisk->PciClass = (UINT8)((ClassReg >> 24) & 0xFF);
 
-        UINT16 Vid = (UINT16)(IdReg & 0xFFFF);
-        UINT16 Did = (UINT16)((IdReg >> 16) & 0xFFFF);
-
-        SPrint(line, sizeof(line),
-               L"disk%d  %-14s %04x:%04x  Class=%02x Sub=%02x PI=%02x  [%s]\r\n",
-               DiskNum, PciVendorName(Vid), (UINTN)Vid, (UINTN)Did,
-               (UINTN)Class, (UINTN)Sub, (UINTN)ProgIF,
-               ClassifyController(Class, Sub, ProgIF));
-        EFISPrint(Ctx->ST->ConOut, line);
+        CurrentDisk->Transport = ClassifyTransport(CurrentDisk->PciClass, CurrentDisk->PciSubclass, CurrentDisk->PciProgIF);
 
         DiskNum++;
     }
 
-    if (DiskNum == 0)
-        EFISPrint(Ctx->ST->ConOut, L"No physical disks found\r\n");
-
+    Ctx->DiskCount = DiskNum;
     FreePoolBS(Ctx->ST->BootServices, HandleBuffer);
     return EFI_SUCCESS;
 }
