@@ -69,7 +69,9 @@ EFI_STATUS CmdFat32Test(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
 
     EFISPrint(Ctx->ST->ConOut, L"Mounted. Root directory contents:\r\n");
 
-    EntryCount = fat32_read_dir(FsHandle, 3, Entries, 16); // 0 = root
+    EFISPrint(Ctx->ST->ConOut, L"Mounted. Tree:\r\n");
+    Fat32WalkTree(Ctx, FsHandle, 0); // 0 = root
+    return EFI_SUCCESS;
 
     CHAR16 dbg[64];
     SPrint(dbg, sizeof(dbg), L"EntryCount = %ld\r\n", EntryCount);
@@ -82,6 +84,75 @@ EFI_STATUS CmdFat32Test(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
                Entries[i].IsDir ? L"[DIR]" : L"[FIL]",
                nameBuf, Entries[i].Size, Entries[i].Location);
         EFISPrint(Ctx->ST->ConOut, line);
+    }
+
+    return EFI_SUCCESS;
+}
+
+static BOOLEAN IsDotEntry(FAT32_DIR_ENTRY *Entry)
+{
+    if (Entry->NameLen == 1 && Entry->Name[0] == '.')
+        return TRUE;
+    if (Entry->NameLen == 2 && Entry->Name[0] == '.' && Entry->Name[1] == '.')
+        return TRUE;
+    return FALSE;
+}
+
+EFI_STATUS Fat32WalkTree(SHELL_CONTEXT *Ctx, VOID *Handle, UINT64 StartCluster)
+{
+    DIR_QUEUE_ITEM Queue[MAX_DIR_QUEUE];
+    UINTN QueueHead = 0;
+    UINTN QueueTail = 0;
+    FAT32_DIR_ENTRY Entries[16];
+    CHAR16 nameBuf[MAX_NAME_LEN + 1];
+    CHAR16 line[400];
+
+    Queue[QueueTail].Cluster = StartCluster;
+    Queue[QueueTail].Depth = 0;
+    QueueTail++;
+
+    while (QueueHead < QueueTail)
+    {
+        UINT64 Cluster = Queue[QueueHead].Cluster;
+        UINTN Depth = Queue[QueueHead].Depth;
+        QueueHead++;
+
+        UINTN Count = fat32_read_dir(Handle, Cluster, Entries, 16);
+
+        for (UINTN i = 0; i < Count; i++)
+        {
+            Fat32NameToChar16(&Entries[i], nameBuf);
+
+            // Indent by depth so the tree structure is visible
+            CHAR16 indent[64];
+            UINTN indentLen = Depth * 2;
+            if (indentLen > 62)
+                indentLen = 62;
+            for (UINTN k = 0; k < indentLen; k++)
+                indent[k] = L' ';
+            indent[indentLen] = L'\0';
+
+            SPrint(line, sizeof(line), L"%s%s  %s  size=%ld\r\n",
+                   indent,
+                   Entries[i].IsDir ? L"[DIR]" : L"[FIL]",
+                   nameBuf,
+                   Entries[i].Size);
+            EFISPrint(Ctx->ST->ConOut, line);
+
+            if (Entries[i].IsDir && !IsDotEntry(&Entries[i]))
+            {
+                if (QueueTail < MAX_DIR_QUEUE)
+                {
+                    Queue[QueueTail].Cluster = Entries[i].Location;
+                    Queue[QueueTail].Depth = Depth + 1;
+                    QueueTail++;
+                }
+                else
+                {
+                    EFISPrint(Ctx->ST->ConOut, L"(queue full, tree truncated)\r\n");
+                }
+            }
+        }
     }
 
     return EFI_SUCCESS;
