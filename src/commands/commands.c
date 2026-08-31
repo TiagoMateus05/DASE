@@ -3,6 +3,7 @@
 CONST COMMAND gCommands[] = {
     {L"listdisks", CmdListDisks},
     {L"listparts", CmdListParts},
+    {L"listdisksinfo", CmdListDiskInfo},
     {L"clear", CmdClear},
     {L"help", CmdHelp},
     {L"exit", ShutDown},
@@ -16,19 +17,24 @@ EFI_STATUS CmdListDisks(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
 }
 
 EFI_STATUS CmdListParts(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
-{   
-    if ( Argc != 2 )
+{
+    if (Argc != 2)
     {
         EFISPrint(Ctx->ST->ConOut, L"Wrong use of listparts: missing disk number\r\n");
         return EFI_INVALID_PARAMETER;
     }
-    if ( !IsValidNumber(Argv[1]) )
+    if (!IsValidNumber(Argv[1]))
     {
         EFISPrint(Ctx->ST->ConOut, L"Wrong use of listparts: disk number must be a digit\r\n");
         return EFI_INVALID_PARAMETER;
     }
     INTN DiskIndex = Atoi(Argv[1]);
     return ListPartitions(Ctx, DiskIndex);
+}
+
+EFI_STATUS CmdListDiskInfo(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
+{
+    return ListDiskInfo(Ctx);
 }
 
 EFI_STATUS CmdClear(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)

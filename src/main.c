@@ -5,6 +5,26 @@
 #include "includes/credits.h"
 #include "includes/wrapper.h"
 
+VOID ConnectAllControllers(EFI_SYSTEM_TABLE *ST)
+{
+    EFI_STATUS  Status;
+    EFI_HANDLE *Handles;
+    UINTN       Count, i;
+
+    Status = uefi_call_wrapper(ST->BootServices->LocateHandleBuffer, 5,
+                               AllHandles, NULL, NULL, &Count, &Handles);
+    if (EFI_ERROR(Status))
+        return;
+
+    for (i = 0; i < Count; i++)
+    {
+        uefi_call_wrapper(ST->BootServices->ConnectController, 4,
+                          Handles[i], NULL, NULL, TRUE);
+    }
+
+    FreePoolBS(ST->BootServices, Handles);
+}
+
 VOID SetConsoleMode(EFI_SYSTEM_TABLE *ST)
 {
     UINTN columns, rows;
@@ -36,6 +56,8 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *ST)
     SetConsoleMode(ST);
     // ClearScreen(ST->ConOut);
     SetAttribute(ST->ConOut, EFI_TEXT_ATTR(EFI_WHITE, EFI_BLACK));
+
+    ConnectAllControllers(ST);
 
     // Credits
     Credits(ST);

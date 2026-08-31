@@ -6,6 +6,7 @@
 
 # Build output
 build/
+OVMF_VARS.fd
 
 
 .vscode
