@@ -3,12 +3,13 @@
 
 #define MAX_DISKS 64
 
-
 #include <efi.h>
 #include <efilib.h>
 
 #include "../includes/wrapper.h"
 #include "../io/vendors.h"
+
+struct _EFI_ATA_PASS_THRU_PROTOCOL;
 
 typedef enum
 {
@@ -50,6 +51,11 @@ typedef struct
     MEDIA_TYPE Media;
     UINT16 RotationRate;
 
+    struct _EFI_ATA_PASS_THRU_PROTOCOL *AtaPassThru; // NULL if not ATA-addressable
+    UINT16 AtaPort;
+    UINT16 AtaPmPort;
+    EFI_STATUS AtaStatus;
+
     // --- capability flags (drive the algorithm choice) ---
     BOOLEAN SecuritySupported;
     BOOLEAN SecurityFrozen;
@@ -69,5 +75,6 @@ BOOLEAN IsPartitionOfDisk(EFI_DEVICE_PATH_PROTOCOL *DiskPath, EFI_DEVICE_PATH_PR
 EFI_STATUS ListPartitions(SHELL_CONTEXT *Ctx, UINTN DiskNumber);
 EFI_STATUS ListDiskInfo(SHELL_CONTEXT *Ctx);
 EFI_STATUS BuildDiskTable(SHELL_CONTEXT *Ctx);
+EFI_STATUS ListAtaInfo(SHELL_CONTEXT *Ctx);
 
 #endif

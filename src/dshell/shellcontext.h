@@ -8,8 +8,9 @@
 typedef struct _SHELL_CONTEXT
 {
     EFI_SYSTEM_TABLE *ST;
-    DISK              Disks[MAX_DISKS];
-    UINTN             DiskCount;
+    EFI_HANDLE ImageHandle;
+    DISK Disks[MAX_DISKS];
+    UINTN DiskCount;
 } SHELL_CONTEXT;
 
 #endif

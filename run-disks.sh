@@ -37,14 +37,36 @@ PART
 "
 }
 
+
 mk hdd_big    2G
-mk hdd_small  512M
+mk hdd_small  512MB
 mk ssd        1G
 mk nvme       4G
 mk usb        256M
 mk raid       1G
 mk_gpt
 mk_mbr
+
+fill() {   # fill <name> <octal byte>
+    local f="$DISKS/$1.img"
+    [ -f "$f" ] || { echo "fill: no such image: $f"; return 1; }
+    local sz tmp
+    sz=$(stat -f%z "$f")
+    tmp="$DISKS/.pattern.$$"
+
+    echo "marking ends of $f with \\$2"
+    LC_ALL=C perl -e "print chr(0$2) x (1024*1024)" > "$tmp"
+    dd if="$tmp" of="$f" bs=1M seek=0 count=1 conv=notrunc status=none
+    dd if="$tmp" of="$f" bs=1M seek=$(( sz / 1048576 - 1 )) count=1 conv=notrunc status=none
+    rm -f "$tmp"
+}
+
+# ./run-disks.sh --fill   regenerates test patterns before booting
+if [ "${1:-}" = "--fill" ]; then
+    fill hdd_big   252    # 0xAA
+    fill hdd_small 252
+    echo "test patterns written"
+fi
 
 qemu-system-x86_64 \
   -M q35 -m 512 \

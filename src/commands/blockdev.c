@@ -1,24 +1,11 @@
 #include "blockdev.h"
 #include "../dshell/shellcontext.h"
-
+#include "../io/ata.h"
 
 // PCI config space offsets (PCI Local Bus Spec, Type 0 header)
 #define PCI_CFG_ID_REG 0x00     // [15:0] VendorID, [31:16] DeviceID
 #define PCI_CFG_CLASS_REG 0x08  // [7:0] Rev, [15:8] ProgIF, [23:16] Sub, [31:24] Class
 #define PCI_CFG_SUBSYS_REG 0x2C // [15:0] SubsysVendorID, [31:16] SubsysID
-
-// PCI class codes relevant to storage
-#define PCI_CLASS_MASS_STORAGE 0x01
-#define PCI_CLASS_SERIAL_BUS 0x0C
-
-#define PCI_SUB_SCSI 0x00
-#define PCI_SUB_IDE 0x01
-#define PCI_SUB_RAID 0x04
-#define PCI_SUB_SATA 0x06
-#define PCI_SUB_SAS 0x07
-#define PCI_SUB_NVM 0x08
-
-#define PCI_SUB_USB 0x03 // within class 0x0C
 
 EFI_STATUS ListDisks(SHELL_CONTEXT *Ctx)
 {
@@ -44,10 +31,10 @@ EFI_STATUS ListDisks(SHELL_CONTEXT *Ctx)
         UINT64 Bytes = (D->LastBlock + 1) * (UINT64)D->BlockSize;
 
         SPrint(line, sizeof(line),
-               L"disk%d  BlockSize=%d  LastBlock=%ld  SizeMB=%ld  SizeGB=%ld  Removable=%s\r\n",
+               L"disk%d  BlockSize=%d  LastBlock=%ld  SizeMB=%ld  SizeGB=%ld  Removable=%s  IsBootDevice=%s\r\n",
                (UINTN)D->Index, (UINTN)D->BlockSize, D->LastBlock,
                Bytes / (1024 * 1024), Bytes / (1024 * 1024 * 1024),
-               D->RemovableMedia ? L"Yes" : L"No");
+               D->RemovableMedia ? L"Yes" : L"No", D->IsBootDevice ? L"  <-- BOOT" : L"");
         EFISPrint(Ctx->ST->ConOut, line);
     }
     return EFI_SUCCESS;
@@ -105,7 +92,6 @@ BOOLEAN IsPartitionOfDisk(EFI_DEVICE_PATH_PROTOCOL *DiskPath,
         return FALSE;
 
     return TRUE;
-
 }
 
 EFI_STATUS ListPartitions(SHELL_CONTEXT *Ctx, UINTN DiskNumber)
@@ -168,7 +154,7 @@ EFI_STATUS ListPartitions(SHELL_CONTEXT *Ctx, UINTN DiskNumber)
         UINT64 SizeMB = ((BlockIo->Media->LastBlock + 1) * (UINT64)BlockIo->Media->BlockSize) / (1024 * 1024);
         UINT64 SizeGB = ((BlockIo->Media->LastBlock + 1) * (UINT64)BlockIo->Media->BlockSize) / (1024 * 1024 * 1024);
         SPrint(line, sizeof(line),
-               L"disk%ldpart%ld  BlockSize=%d  LastBlock=%ld  SizeMB=%ld SizeGB=%ld  Removable=%s\r\n",
+               L"disk%ldpart%ld  BlockSize=%d  LastBlock=%ld  SizeMB=%ld SizeGB=%ld  Removable=%s  IsBootDevice=%s\r\n",
                DiskNumber, PartNum, BlockIo->Media->BlockSize, BlockIo->Media->LastBlock, SizeMB, SizeGB,
                BlockIo->Media->RemovableMedia ? L"Yes" : L"No");
         EFISPrint(Ctx->ST->ConOut, line);
@@ -195,14 +181,15 @@ EFI_STATUS ListDiskInfo(SHELL_CONTEXT *Ctx)
     for (UINTN i = 0; i < Ctx->DiskCount; i++)
     {
         DISK *CurrentDisk = &Ctx->Disks[i];
+        UINT64 SizeGB = ((CurrentDisk->BlockIo->Media->LastBlock + 1) * (UINT64)CurrentDisk->BlockIo->Media->BlockSize) / (1024 * 1024 * 1024);
 
         SPrint(line, sizeof(line),
-               L"disk%d  %-14s %04x:%04x  sub %04x:%04x  Class=%02x Sub=%02x PI=%02x  [%s]\r\n",
+               L"disk%d  %-14s %04x:%04x  sub %04x:%04x  Class=%02x Sub=%02x PI=%02x Size=%ldGB [%s]\r\n",
                (UINTN)CurrentDisk->Index, PciVendorName(CurrentDisk->PciVendorId),
                (UINTN)CurrentDisk->PciVendorId, (UINTN)CurrentDisk->PciDeviceId,
                (UINTN)CurrentDisk->PciSubsysVendorId, (UINTN)CurrentDisk->PciSubsysId,
                (UINTN)CurrentDisk->PciClass, (UINTN)CurrentDisk->PciSubclass, (UINTN)CurrentDisk->PciProgIF,
-               TransportName(CurrentDisk->Transport));
+               SizeGB, TransportName(CurrentDisk->Transport));
         EFISPrint(Ctx->ST->ConOut, line);
     }
 
@@ -210,6 +197,52 @@ EFI_STATUS ListDiskInfo(SHELL_CONTEXT *Ctx)
         EFISPrint(Ctx->ST->ConOut, L"No physical disks found\r\n");
 
     return EFI_SUCCESS;
+}
+
+EFI_STATUS MarkBootDevice(SHELL_CONTEXT *Ctx)
+{
+    EFI_STATUS Status;
+    EFI_LOADED_IMAGE *LoadedImage;
+    EFI_DEVICE_PATH_PROTOCOL *BootPath;
+
+    for (UINTN i = 0; i < Ctx->DiskCount; i++)
+        Ctx->Disks[i].IsBootDevice = FALSE;
+
+    Status = uefi_call_wrapper(Ctx->ST->BootServices->HandleProtocol, 3,
+                               Ctx->ImageHandle, &LoadedImageProtocol,
+                               (VOID **)&LoadedImage);
+    if (EFI_ERROR(Status))
+        return Status;
+
+    if (LoadedImage->DeviceHandle == NULL)
+        return EFI_NOT_FOUND;
+
+    for (UINTN i = 0; i < Ctx->DiskCount; i++)
+    {
+        if (Ctx->Disks[i].Handle == LoadedImage->DeviceHandle)
+        {
+            Ctx->Disks[i].IsBootDevice = TRUE;
+            return EFI_SUCCESS;
+        }
+    }
+
+    // Otherwise DeviceHandle is a partition; find the disk that owns it.
+    Status = uefi_call_wrapper(Ctx->ST->BootServices->HandleProtocol, 3,
+                               LoadedImage->DeviceHandle, &DevicePathProtocol,
+                               (VOID **)&BootPath);
+    if (EFI_ERROR(Status))
+        return Status;
+
+    for (UINTN i = 0; i < Ctx->DiskCount; i++)
+    {
+        if (IsPartitionOfDisk(Ctx->Disks[i].DevicePath, BootPath))
+        {
+            Ctx->Disks[i].IsBootDevice = TRUE;
+            return EFI_SUCCESS;
+        }
+    }
+
+    return EFI_NOT_FOUND; // couldn't identify it -- caller must treat as fatal
 }
 
 EFI_STATUS BuildDiskTable(SHELL_CONTEXT *Ctx)
@@ -320,5 +353,41 @@ EFI_STATUS BuildDiskTable(SHELL_CONTEXT *Ctx)
 
     Ctx->DiskCount = DiskNum;
     FreePoolBS(Ctx->ST->BootServices, HandleBuffer);
+    MarkBootDevice(Ctx);
+    return EFI_SUCCESS;
+}
+
+EFI_STATUS ListAtaInfo(SHELL_CONTEXT *Ctx)
+{
+    CHAR16 line[200];
+    EFI_STATUS Status;
+
+    Status = BuildDiskTable(Ctx);
+    if (EFI_ERROR(Status))
+        return Status;
+
+    AtaPopulateTable(Ctx);
+
+    for (UINTN i = 0; i < Ctx->DiskCount; i++)
+    {
+        DISK *D = &Ctx->Disks[i];
+
+        if (D->AtaPassThru == NULL)
+        {
+            SPrint(line, sizeof(line),
+                   L"disk%d  [%s]  no ATA pass-thru (%r)\r\n",
+                   (UINTN)D->Index, TransportName(D->Transport), D->AtaStatus);
+        }
+        else
+        {
+            SPrint(line, sizeof(line),
+                   L"disk%d  Port=%d  %-20s  %-16s  rot=%d  %s\r\n",
+                   (UINTN)D->Index, (UINTN)D->AtaPort,
+                   D->Model, D->Serial, (UINTN)D->RotationRate,
+                   D->Media == MEDIA_SOLID_STATE ? L"SSD" : D->Media == MEDIA_ROTATIONAL ? L"HDD"
+                                                                                         : L"UNKNOWN");
+        }
+        EFISPrint(Ctx->ST->ConOut, line);
+    }
     return EFI_SUCCESS;
 }

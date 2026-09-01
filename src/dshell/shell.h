@@ -10,7 +10,7 @@
 #include "../commands/commands.h"
 #include "../includes/wrapper.h"
 
-EFI_STATUS StartShell(EFI_SYSTEM_TABLE *ST);
+EFI_STATUS StartShell(EFI_SYSTEM_TABLE *ST, EFI_HANDLE ImageHandle);
 EFI_STATUS ReadLine(EFI_SYSTEM_TABLE *ST, CHAR16 *buf, UINTN bufSize);
 UINTN Tokenize(CHAR16 *Line, CHAR16 **Argv, UINTN MaxArgs);
 EFI_STATUS Dispatch(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv);

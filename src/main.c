@@ -63,6 +63,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *ST)
     Credits(ST);
     ClearScreen(ST->ConOut);
 
-    StartShell(ST);
+    StartShell(ST, ImageHandle);
     return EFI_SUCCESS;
 }

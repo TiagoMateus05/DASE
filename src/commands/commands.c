@@ -4,6 +4,9 @@ CONST COMMAND gCommands[] = {
     {L"listdisks", CmdListDisks},
     {L"listparts", CmdListParts},
     {L"listdisksinfo", CmdListDiskInfo},
+    {L"listatainfo", CmdListAtaInfo},
+    {L"checkwipe", CmdCheckWipe},
+    {L"wipe", CmdWipe},
     {L"clear", CmdClear},
     {L"help", CmdHelp},
     {L"exit", ShutDown},
@@ -35,6 +38,50 @@ EFI_STATUS CmdListParts(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
 EFI_STATUS CmdListDiskInfo(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
 {
     return ListDiskInfo(Ctx);
+}
+
+EFI_STATUS CmdListAtaInfo(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
+{
+    return ListAtaInfo(Ctx);
+}
+
+EFI_STATUS CmdCheckWipe(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
+{
+    if (Argc < 1 || Argc > 2)
+    {
+        EFISPrint(Ctx->ST->ConOut, L"Wrong use of checkwipe\r\n");
+        return EFI_INVALID_PARAMETER;
+    }
+
+    EFI_STATUS Status = BuildDiskTable(Ctx);
+    if (EFI_ERROR(Status))
+        return Status;
+    AtaPopulateTable(Ctx);
+
+    if (Argc == 1)
+    {
+        for (UINTN i = 0; i < Ctx->DiskCount; i++)
+        {
+            DISK *D = &Ctx->Disks[i];
+            WipeCheckTargetVerbose(Ctx, D);
+        }
+        return EFI_SUCCESS;
+    }
+    else
+    {
+        if (!IsValidNumber(Argv[1]))
+        {
+            EFISPrint(Ctx->ST->ConOut, L"Wrong use of checkwipe: disk number must be a digit\r\n");
+            return EFI_INVALID_PARAMETER;
+        }
+        INTN DiskIndex = Atoi(Argv[1]);
+        DISK *D;
+        Status = FindDiskByIndex(Ctx, DiskIndex, &D);
+        if (EFI_ERROR(Status))
+            return Status;
+
+        return WipeCheckTargetVerbose(Ctx, D);
+    }
 }
 
 EFI_STATUS CmdClear(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
@@ -69,4 +116,41 @@ BOOLEAN IsValidNumber(CHAR16 *Str)
         Str++;
     }
     return TRUE;
+}
+
+EFI_STATUS CmdWipe(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
+{
+    EFI_STATUS Status;
+    DISK *D;
+
+    if (Argc != 2 || !IsValidNumber(Argv[1]))
+    {
+        EFISPrint(Ctx->ST->ConOut, L"Usage: wipe <disk number>\r\n");
+        return EFI_INVALID_PARAMETER;
+    }
+
+    Status = BuildDiskTable(Ctx);
+    if (EFI_ERROR(Status))
+        return Status;
+    AtaPopulateTable(Ctx);
+
+    Status = FindDiskByIndex(Ctx, (UINTN)Atoi(Argv[1]), &D);
+    if (EFI_ERROR(Status))
+        return Status;
+
+    Status = WipeCheckTargetVerbose(Ctx, D);
+    if (EFI_ERROR(Status))
+        return Status;
+
+    if (WipeSelectMethod(D) != WIPE_METHOD_OVERWRITE)
+    {
+        EFISPrint(Ctx->ST->ConOut,
+                  L"No implemented wipe method for this drive.\r\n");
+        return EFI_UNSUPPORTED;
+    }
+
+    if (!WipeConfirm(Ctx, D))
+        return EFI_ABORTED;
+    
+    return WipeOverwrite(Ctx, D, 0x00);
 }

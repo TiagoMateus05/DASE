@@ -2,10 +2,11 @@
 
 #define MAX_ARGS 16
 
-EFI_STATUS StartShell(EFI_SYSTEM_TABLE *ST)
+EFI_STATUS StartShell(EFI_SYSTEM_TABLE *ST, EFI_HANDLE ImageHandle)
 {
     SHELL_CONTEXT Ctx = {0};
     Ctx.ST = ST;
+    Ctx.ImageHandle = ImageHandle;
 
     for (;;)
     {
