@@ -26,8 +26,7 @@ WIPE_METHOD WipeSelectMethod(DISK *D);
 CONST CHAR16 *WipeMethodName(WIPE_METHOD M);
 BOOLEAN WipeConfirm(SHELL_CONTEXT *Ctx, DISK *Disk);
 EFI_STATUS WipeOverwrite(SHELL_CONTEXT *Ctx, DISK *Disk, UINT8 Pattern);
-EFI_STATUS WipeCheckTarget(SHELL_CONTEXT *Ctx, DISK *Disk);
-EFI_STATUS WipeCheckTargetVerbose(SHELL_CONTEXT *Ctx, DISK *Disk);
-BOOLEAN WipeConfirm(SHELL_CONTEXT *Ctx, DISK *Disk);
+EFI_STATUS WipeVerification(SHELL_CONTEXT *Ctx, DISK *Disk, UINT8 Pattern);
+EFI_STATUS WipeExecuteSelection(SHELL_CONTEXT *Ctx);
 
 #endif

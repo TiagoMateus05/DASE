@@ -23,12 +23,12 @@ EFI_STATUS AtaGetPassThru(SHELL_CONTEXT *Ctx, DISK *Disk,
                           EFI_ATA_PASS_THRU_PROTOCOL **OutPassThru,
                           UINT16 *OutPort, UINT16 *OutPmPort)
 {
-    EFI_STATUS                  Status;
-    EFI_DEVICE_PATH_PROTOCOL   *WalkPath;
-    EFI_DEVICE_PATH_PROTOCOL   *DiskNode;
-    EFI_HANDLE                  AtaHandle;
+    EFI_STATUS Status;
+    EFI_DEVICE_PATH_PROTOCOL *WalkPath;
+    EFI_DEVICE_PATH_PROTOCOL *DiskNode;
+    EFI_HANDLE AtaHandle;
     EFI_ATA_PASS_THRU_PROTOCOL *AtaPassThru;
-    UINT16                      Port = 0xFFFF;
+    UINT16 Port = 0xFFFF;
 
     if (Disk->DevicePath == NULL)
         return EFI_INVALID_PARAMETER;
@@ -58,7 +58,7 @@ EFI_STATUS AtaGetPassThru(SHELL_CONTEXT *Ctx, DISK *Disk,
                                             AtaPassThru, Port, &PmPort)))
         {
             EFI_DEVICE_PATH_PROTOCOL *Built = NULL;
-            BOOLEAN                   Match;
+            BOOLEAN Match;
 
             Status = uefi_call_wrapper(AtaPassThru->BuildDevicePath, 4,
                                        AtaPassThru, Port, PmPort, &Built);
@@ -72,8 +72,8 @@ EFI_STATUS AtaGetPassThru(SHELL_CONTEXT *Ctx, DISK *Disk,
 
             if (Match)
             {
-                *OutPort     = Port;
-                *OutPmPort   = PmPort;
+                *OutPort = Port;
+                *OutPmPort = PmPort;
                 *OutPassThru = AtaPassThru;
                 return EFI_SUCCESS;
             }
@@ -84,14 +84,14 @@ EFI_STATUS AtaGetPassThru(SHELL_CONTEXT *Ctx, DISK *Disk,
 }
 
 VOID AtaStringToChar16(UINT16 *Id, UINTN WordOffset, UINTN WordCount,
-                              CHAR16 *Out)
+                       CHAR16 *Out)
 {
     UINTN o = 0;
 
     for (UINTN i = 0; i < WordCount; i++)
     {
         UINT16 w = Id[WordOffset + i];
-        Out[o++] = (CHAR16)((w >> 8) & 0xFF);   // high byte first
+        Out[o++] = (CHAR16)((w >> 8) & 0xFF); // high byte first
         Out[o++] = (CHAR16)(w & 0xFF);
     }
     Out[o] = L'\0';
@@ -103,39 +103,39 @@ VOID AtaStringToChar16(UINT16 *Id, UINTN WordOffset, UINTN WordCount,
 
 EFI_STATUS AtaIdentify(SHELL_CONTEXT *Ctx, DISK *Disk, UINT16 *IdBuf)
 {
-    EFI_ATA_PASS_THRU_PROTOCOL       *Pt = NULL;
-    UINT16                            Port = 0, PmPort = 0;
-    EFI_ATA_STATUS_BLOCK              Asb;
-    EFI_ATA_COMMAND_BLOCK             Acb;
-    EFI_ATA_PASS_THRU_COMMAND_PACKET  Packet;
-    EFI_STATUS                        Status;
+    EFI_ATA_PASS_THRU_PROTOCOL *Pt = NULL;
+    UINT16 Port = 0, PmPort = 0;
+    EFI_ATA_STATUS_BLOCK Asb;
+    EFI_ATA_COMMAND_BLOCK Acb;
+    EFI_ATA_PASS_THRU_COMMAND_PACKET Packet;
+    EFI_STATUS Status;
 
     Status = AtaGetPassThru(Ctx, Disk, &Pt, &Port, &PmPort);
     if (EFI_ERROR(Status))
         return Status;
 
-    ZeroMem(&Asb,    sizeof(Asb));
-    ZeroMem(&Acb,    sizeof(Acb));
+    ZeroMem(&Asb, sizeof(Asb));
+    ZeroMem(&Acb, sizeof(Acb));
     ZeroMem(&Packet, sizeof(Packet));
 
-    Acb.AtaCommand     = ATA_CMD_IDENTIFY_DEVICE;
+    Acb.AtaCommand = ATA_CMD_IDENTIFY_DEVICE;
     Acb.AtaSectorCount = 1;
 
-    Packet.Asb              = &Asb;
-    Packet.Acb              = &Acb;
-    Packet.InDataBuffer     = IdBuf;
+    Packet.Asb = &Asb;
+    Packet.Acb = &Acb;
+    Packet.InDataBuffer = IdBuf;
     Packet.InTransferLength = 512;
-    Packet.Protocol         = EFI_ATA_PASS_THRU_CMD_PROTOCOL_PIO_DATA_IN;
-    Packet.Length           = EFI_ATA_PASS_THRU_LENGTH_BYTES;
-    Packet.Timeout          = 30ULL * 10 * 1000 * 1000;   // 30s, 100ns units
+    Packet.Protocol = EFI_ATA_PASS_THRU_CMD_PROTOCOL_PIO_DATA_IN;
+    Packet.Length = EFI_ATA_PASS_THRU_LENGTH_BYTES;
+    Packet.Timeout = 30ULL * 10 * 1000 * 1000; // 30s, 100ns units
 
     Status = uefi_call_wrapper(Pt->PassThru, 5, Pt, Port, PmPort, &Packet, NULL);
     if (EFI_ERROR(Status))
         return Status;
 
     Disk->AtaPassThru = Pt;
-    Disk->AtaPort     = Port;
-    Disk->AtaPmPort   = PmPort;
+    Disk->AtaPort = Port;
+    Disk->AtaPmPort = PmPort;
     return EFI_SUCCESS;
 }
 
@@ -143,9 +143,9 @@ EFI_STATUS AtaPopulateTable(SHELL_CONTEXT *Ctx)
 {
     for (UINTN i = 0; i < Ctx->DiskCount; i++)
     {
-        DISK   *D = &Ctx->Disks[i];
-        UINT16  Id[256] __attribute__((aligned(16)));
-        UINT16  Sec;
+        DISK *D = &Ctx->Disks[i];
+        UINT16 Id[256] __attribute__((aligned(16)));
+        UINT16 Sec;
 
         if (D->Transport != DISK_TRANSPORT_SATA &&
             D->Transport != DISK_TRANSPORT_IDE)
@@ -161,23 +161,38 @@ EFI_STATUS AtaPopulateTable(SHELL_CONTEXT *Ctx)
         if (EFI_ERROR(D->AtaStatus))
             continue;
 
-        AtaStringToChar16(Id, ATA_ID_WORD_MODEL,    20, D->Model);
-        AtaStringToChar16(Id, ATA_ID_WORD_SERIAL,   10, D->Serial);
-        AtaStringToChar16(Id, ATA_ID_WORD_FIRMWARE,  4, D->FirmwareRev);
+        {
+            CHAR16 dbg[110];
+            SPrint(dbg, sizeof(dbg),
+                   L"disk%d  w59=%04x w69=%04x w78=%04x w82=%04x w128=%04x\r\n",
+                   (UINTN)D->Index, (UINTN)Id[59], (UINTN)Id[69],
+                   (UINTN)Id[78], (UINTN)Id[82], (UINTN)Id[128]);
+            EFISPrint(Ctx->ST->ConOut, dbg);
+        }
+
+        AtaStringToChar16(Id, ATA_ID_WORD_MODEL, 20, D->Model);
+        AtaStringToChar16(Id, ATA_ID_WORD_SERIAL, 10, D->Serial);
+        AtaStringToChar16(Id, ATA_ID_WORD_FIRMWARE, 4, D->FirmwareRev);
 
         D->RotationRate = Id[ATA_ID_WORD_ROTATION_RATE];
 
         if (D->RotationRate == ATA_ROTATION_SOLID_STATE)
             D->Media = MEDIA_SOLID_STATE;
         else if (D->RotationRate == ATA_ROTATION_NOT_REPORTED)
-            D->Media = MEDIA_UNKNOWN;    // NOT the same as rotational
+            D->Media = MEDIA_UNKNOWN; // NOT the same as rotational
         else
             D->Media = MEDIA_ROTATIONAL;
 
         Sec = Id[ATA_ID_WORD_SECURITY_STATUS];
-        D->SecuritySupported      = (Sec & ATA_SEC_SUPPORTED)      ? TRUE : FALSE;
-        D->SecurityFrozen         = (Sec & ATA_SEC_FROZEN)         ? TRUE : FALSE;
+        D->SecuritySupported = (Sec & ATA_SEC_SUPPORTED) ? TRUE : FALSE;
+        D->SecurityFrozen = (Sec & ATA_SEC_FROZEN) ? TRUE : FALSE;
         D->EnhancedEraseSupported = (Sec & ATA_SEC_ENHANCED_ERASE) ? TRUE : FALSE;
+
+        // UINT16 San = Id[ATA_ID_WORD_SANITIZE];
+        // D->SanitizeSupported = (San & ATA_SANITIZE_SUPPORTED) ? TRUE : FALSE;
+        // D->SanitizeCryptoSupported = (San & ATA_SANITIZE_CRYPTO_EXT) ? TRUE : FALSE;
+        // D->SanitizeBlockEraseSupported = (San & ATA_SANITIZE_BLOCK_ERASE_EXT) ? TRUE : FALSE;
+        // D->SanitizeOverwriteSupported = (San & ATA_SANITIZE_OVERWRITE_EXT) ? TRUE : FALSE;
     }
     return EFI_SUCCESS;
 }

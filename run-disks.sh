@@ -39,7 +39,7 @@ PART
 
 
 mk hdd_big    2G
-mk hdd_small  512MB
+mk hdd_small  512M
 mk ssd        1G
 mk nvme       4G
 mk usb        256M

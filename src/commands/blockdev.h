@@ -60,10 +60,16 @@ typedef struct
     BOOLEAN SecuritySupported;
     BOOLEAN SecurityFrozen;
     BOOLEAN EnhancedEraseSupported;
-    BOOLEAN SanitizeSupported;
-
+    
     // --- safety and selection state ---
     BOOLEAN IsBootDevice;
+    
+    // --- SSD ATA Sanitize state ---
+    BOOLEAN SanitizeSupported;
+    BOOLEAN SanitizeCryptoSupported;
+    BOOLEAN SanitizeBlockEraseSupported;
+    BOOLEAN SanitizeOverwriteSupported;
+
 } DISK;
 
 struct _SHELL_CONTEXT;

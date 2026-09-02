@@ -38,7 +38,7 @@ fi
 # -n bounds both sides to the same explicit length, so a real match
 # reports success instead.
 CHUNK=$((1024 * 1024)) # 1 MiB, matches the wipe's own write chunk size
-SMALL_LIMIT=$((256 * 1024 * 1024))
+SMALL_LIMIT=$((8 * 1024 * 1024 * 1024))
 
 if [ "$apparent" -le "$SMALL_LIMIT" ]; then
     # Cheap enough to check exhaustively in one shot.

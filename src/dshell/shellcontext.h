@@ -4,6 +4,7 @@
 #include <efi.h>
 
 #include "../commands/blockdev.h"
+#include "wipeparser.h"
 
 typedef struct _SHELL_CONTEXT
 {
@@ -11,6 +12,7 @@ typedef struct _SHELL_CONTEXT
     EFI_HANDLE ImageHandle;
     DISK Disks[MAX_DISKS];
     UINTN DiskCount;
+    WIPE_ARGS WipeArgs;
 } SHELL_CONTEXT;
 
 #endif

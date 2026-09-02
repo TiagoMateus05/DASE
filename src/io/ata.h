@@ -187,6 +187,14 @@ struct _EFI_ATA_PASS_THRU_PROTOCOL
 #define ATA_ROTATION_NOT_REPORTED 0x0000
 #define ATA_ROTATION_SOLID_STATE 0x0001
 
+#define ATA_ID_WORD_SANITIZE 59      // ACS-4: sanitize feature support bits
+
+// Word 59 bits -- verify each against the ACS revision you are reading.
+// #define ATA_SANITIZE_SUPPORTED       (1 << ??)
+// #define ATA_SANITIZE_CRYPTO_EXT      (1 << ??)
+// #define ATA_SANITIZE_OVERWRITE_EXT   (1 << ??)
+// #define ATA_SANITIZE_BLOCK_ERASE_EXT (1 << ??)
+
 EFI_STATUS AtaGetPassThru(SHELL_CONTEXT *Ctx, DISK *Disk, EFI_ATA_PASS_THRU_PROTOCOL **OutPassThru, UINT16 *OutPort, UINT16 *OutPmPort);
 VOID AtaStringToChar16(UINT16 *Id, UINTN WordOffset, UINTN WordCount, CHAR16 *Out);
 EFI_STATUS AtaIdentify(SHELL_CONTEXT *Ctx, DISK *Disk, UINT16 *IdBuf);

@@ -121,36 +121,28 @@ BOOLEAN IsValidNumber(CHAR16 *Str)
 EFI_STATUS CmdWipe(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
 {
     EFI_STATUS Status;
-    DISK *D;
-
-    if (Argc != 2 || !IsValidNumber(Argv[1]))
-    {
-        EFISPrint(Ctx->ST->ConOut, L"Usage: wipe <disk number>\r\n");
-        return EFI_INVALID_PARAMETER;
-    }
 
     Status = BuildDiskTable(Ctx);
     if (EFI_ERROR(Status))
         return Status;
     AtaPopulateTable(Ctx);
+    WipeRevalidateSelection(Ctx);
 
-    Status = FindDiskByIndex(Ctx, (UINTN)Atoi(Argv[1]), &D);
+    Status = ParseWipeArgs(Ctx, Argc, Argv);
     if (EFI_ERROR(Status))
         return Status;
 
-    Status = WipeCheckTargetVerbose(Ctx, D);
-    if (EFI_ERROR(Status))
-        return Status;
+    if (Ctx->WipeArgs.List)
+        return ListSelectedDisks(Ctx);
 
-    if (WipeSelectMethod(D) != WIPE_METHOD_OVERWRITE)
+    if (Ctx->WipeArgs.Interactive)
     {
-        EFISPrint(Ctx->ST->ConOut,
-                  L"No implemented wipe method for this drive.\r\n");
-        return EFI_UNSUPPORTED;
+        // TUI not implemented yet; show the selection instead.
+        return ListSelectedDisks(Ctx);
     }
 
-    if (!WipeConfirm(Ctx, D))
-        return EFI_ABORTED;
-    
-    return WipeOverwrite(Ctx, D, 0x00);
+    if (Ctx->WipeArgs.Execute)
+        return WipeExecuteSelection(Ctx);
+
+    return ListSelectedDisks(Ctx);
 }
