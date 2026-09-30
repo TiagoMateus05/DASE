@@ -175,8 +175,9 @@ EFI_STATUS ParseWipeArgs(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
             return EFI_INVALID_PARAMETER;
         }
 
-        if (StrCmp(Arg, L"-a") == 0 || StrCmp(Arg, L"-x") == 0 ||
-            StrCmp(Arg, L"-l") == 0 || StrCmp(Arg, L"-c") == 0)
+        if (StrCmp(Arg, L"-s") == 0 || StrCmp(Arg, L"-a") == 0 ||
+            StrCmp(Arg, L"-x") == 0 || StrCmp(Arg, L"-l") == 0 ||
+            StrCmp(Arg, L"-c") == 0)
         {
             HasAction = TRUE;
         }
@@ -209,6 +210,12 @@ EFI_STATUS ParseWipeArgs(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
         BOOLEAN Removing = FALSE;
         CHAR16 *Digits;
         UINTN DiskNum;
+
+        if (StrCmp(Arg, L"-s") == 0)
+        {
+            A->NoAsync = TRUE;
+            continue;
+        }
 
         if (StrCmp(Arg, L"-a") == 0)
         {
@@ -293,7 +300,7 @@ EFI_STATUS ParseWipeArgs(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
             EFI_STATUS Chk = WipeCheckTarget(Ctx, &Ctx->Disks[DiskNum]);
             if (EFI_ERROR(Chk))
             {
-                WipeCheckTargetVerbose(Ctx, &Ctx->Disks[DiskNum]); 
+                WipeCheckTargetVerbose(Ctx, &Ctx->Disks[DiskNum]);
                 return Chk;
             }
             if (WipeSelectMethod(&Ctx->Disks[DiskNum]) == WIPE_METHOD_NONE)
@@ -320,6 +327,13 @@ EFI_STATUS ParseWipeArgs(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
             SPrint(line, sizeof(line), L"disk%d selected\r\n", DiskNum);
             EFISPrint(Ctx->ST->ConOut, line);
         }
+    }
+
+    if (A->NoAsync && !A->Execute)
+    {
+        EFISPrint(Ctx->ST->ConOut, L"wipe: -s only applies with -x\r\n");
+        A->NoAsync = FALSE;
+        return EFI_INVALID_PARAMETER;
     }
 
     if (A->All)

@@ -5,6 +5,7 @@ CONST COMMAND gCommands[] = {
     {L"listparts", CmdListParts},
     {L"listdisksinfo", CmdListDiskInfo},
     {L"listatainfo", CmdListAtaInfo},
+    {L"nvmeinfo", CmdNvmeInfo},
     {L"checkwipe", CmdCheckWipe},
     {L"wipe", CmdWipe},
     {L"clear", CmdClear},
@@ -57,6 +58,7 @@ EFI_STATUS CmdCheckWipe(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
     if (EFI_ERROR(Status))
         return Status;
     AtaPopulateTable(Ctx);
+    NvmePopulateTable(Ctx);
 
     if (Argc == 1)
     {
@@ -126,6 +128,7 @@ EFI_STATUS CmdWipe(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
     if (EFI_ERROR(Status))
         return Status;
     AtaPopulateTable(Ctx);
+    NvmePopulateTable(Ctx);
     WipeRevalidateSelection(Ctx);
 
     Status = ParseWipeArgs(Ctx, Argc, Argv);
@@ -145,4 +148,43 @@ EFI_STATUS CmdWipe(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
         return WipeExecuteSelection(Ctx);
 
     return ListSelectedDisks(Ctx);
+}
+
+EFI_STATUS CmdNvmeInfo(SHELL_CONTEXT *Ctx, UINTN Argc, CHAR16 **Argv)
+{
+    EFI_STATUS Status = BuildDiskTable(Ctx);
+    if (EFI_ERROR(Status))
+        return Status;
+    NvmePopulateTable(Ctx);
+
+    for (UINTN i = 0; i < Ctx->DiskCount; i++)
+    {
+        DISK *D = &Ctx->Disks[i];
+        CHAR16 line[160];
+
+        if (D->Transport != DISK_TRANSPORT_NVME)
+            continue;
+
+        if (EFI_ERROR(D->NvmeStatus))
+        {
+            SPrint(line, sizeof(line), L"disk%d  NVMe identify failed: %r\r\n",
+                   (UINTN)D->Index, D->NvmeStatus);
+            EFISPrint(Ctx->ST->ConOut, line);
+            continue;
+        }
+
+        SPrint(line, sizeof(line), L"disk%d  %s  %s  %s\r\n",
+               (UINTN)D->Index, D->Model, D->Serial, D->FirmwareRev);
+        EFISPrint(Ctx->ST->ConOut, line);
+        SPrint(line, sizeof(line),
+               L"       nsid %d of %d  format=%s  sanitize: crypto=%s block=%s overwrite=%s  dlfeat=%02x\r\n",
+               (UINTN)D->NvmeNsid, (UINTN)D->NvmeNamespaceCount,
+               D->NvmeFormatSupported ? L"YES" : L"NO",
+               D->NvmeSanitizeCryptoSupported ? L"YES" : L"NO",
+               D->NvmeSanitizeBlockEraseSupported ? L"YES" : L"NO",
+               D->NvmeSanitizeOverwriteSupported ? L"YES" : L"NO",
+               (UINTN)D->NvmeDlfeat);
+        EFISPrint(Ctx->ST->ConOut, line);
+    }
+    return EFI_SUCCESS;
 }

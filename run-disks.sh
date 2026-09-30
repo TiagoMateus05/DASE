@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-QEMU_SHARE=/opt/homebrew/Cellar/qemu/11.1.0/share/qemu
+QEMU_SHARE=/opt/homebrew/share/qemu
 DISKS=build/disks
 mkdir -p "$DISKS"
 
@@ -65,6 +65,7 @@ fill() {   # fill <name> <octal byte>
 if [ "${1:-}" = "--fill" ]; then
     fill hdd_big   252    # 0xAA
     fill hdd_small 252
+    fill nvme      252
     echo "test patterns written"
 fi
 

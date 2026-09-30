@@ -6,8 +6,7 @@
 
 //
 // EFI_ATA_PASS_THRU_PROTOCOL. Not present in gnu-efi's headers, so the
-// structures below are transcribed from the UEFI Specification,
-// "ATA Pass Thru Protocol". Field order is load-bearing -- do not reorder.
+// structures below are transcribed from the UEFI Specification
 //
 
 #define EFI_ATA_PASS_THRU_PROTOCOL_GUID \
@@ -68,13 +67,13 @@ typedef struct
 {
     EFI_ATA_STATUS_BLOCK *Asb;
     EFI_ATA_COMMAND_BLOCK *Acb;
-    UINT64 Timeout; // 100ns units; 0 == wait forever
+    UINT64 Timeout;
     VOID *InDataBuffer;
     VOID *OutDataBuffer;
     UINT32 InTransferLength;
     UINT32 OutTransferLength;
-    UINT8 Protocol; // EFI_ATA_PASS_THRU_CMD_PROTOCOL_*
-    UINT8 Length;   // EFI_ATA_PASS_THRU_LENGTH_*
+    UINT8 Protocol;
+    UINT8 Length;
 } EFI_ATA_PASS_THRU_COMMAND_PACKET;
 
 typedef EFI_STATUS(EFIAPI *EFI_ATA_PASS_THRU_PASSTHRU)(
@@ -189,7 +188,6 @@ struct _EFI_ATA_PASS_THRU_PROTOCOL
 
 #define ATA_ID_WORD_SANITIZE 59      // ACS-4: sanitize feature support bits
 
-// Word 59 bits -- verify each against the ACS revision you are reading.
 // #define ATA_SANITIZE_SUPPORTED       (1 << ??)
 // #define ATA_SANITIZE_CRYPTO_EXT      (1 << ??)
 // #define ATA_SANITIZE_OVERWRITE_EXT   (1 << ??)

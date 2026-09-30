@@ -19,7 +19,8 @@ CFLAGS = \
     -DEFI_FUNCTION_WRAPPER \
     -ffreestanding \
     -O2 \
-    -Wall
+    -Wall \
+    -MMD -MP
 
 LDFLAGS = \
     -nostdlib \
@@ -58,6 +59,8 @@ $(BUILD)/main.so: $(C_OBJS) $(RUST_LIB)
 $(BUILD)/%.o: src/%.c | $(BUILD)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
+
+-include $(C_OBJS:.o=.d)
 
 $(RUST_LIB): $(RUST_SRC) $(RUST_DIR)/Cargo.toml | $(BUILD)
 	$(CARGO) build --manifest-path $(RUST_DIR)/Cargo.toml --release --target-dir $(RUST_TARGET_DIR)

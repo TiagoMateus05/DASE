@@ -2,7 +2,6 @@
 #include <efilib.h>
 
 #include "dshell/shell.h"
-#include "includes/credits.h"
 #include "includes/wrapper.h"
 
 VOID ConnectAllControllers(EFI_SYSTEM_TABLE *ST)
@@ -59,8 +58,6 @@ EFI_STATUS EFIAPI efi_main(EFI_HANDLE ImageHandle, EFI_SYSTEM_TABLE *ST)
 
     ConnectAllControllers(ST);
 
-    // Credits
-    Credits(ST);
     ClearScreen(ST->ConOut);
 
     StartShell(ST, ImageHandle);

@@ -2,7 +2,6 @@
 #include "../dshell/shellcontext.h"
 #include "../io/ata.h"
 
-// PCI config space offsets (PCI Local Bus Spec, Type 0 header)
 #define PCI_CFG_ID_REG 0x00     // [15:0] VendorID, [31:16] DeviceID
 #define PCI_CFG_CLASS_REG 0x08  // [7:0] Rev, [15:8] ProgIF, [23:16] Sub, [31:24] Class
 #define PCI_CFG_SUBSYS_REG 0x2C // [15:0] SubsysVendorID, [31:16] SubsysID
@@ -184,12 +183,12 @@ EFI_STATUS ListDiskInfo(SHELL_CONTEXT *Ctx)
         UINT64 SizeGB = ((CurrentDisk->BlockIo->Media->LastBlock + 1) * (UINT64)CurrentDisk->BlockIo->Media->BlockSize) / (1024 * 1024 * 1024);
 
         SPrint(line, sizeof(line),
-               L"disk%d  %-14s %04x:%04x  sub %04x:%04x  Class=%02x Sub=%02x PI=%02x Size=%ldGB [%s]\r\n",
+               L"disk%d  %-14s %04x:%04x  sub %04x:%04x  Class=%02x Sub=%02x PI=%02x Size=%ldGB Async=%s [%s]\r\n",
                (UINTN)CurrentDisk->Index, PciVendorName(CurrentDisk->PciVendorId),
                (UINTN)CurrentDisk->PciVendorId, (UINTN)CurrentDisk->PciDeviceId,
                (UINTN)CurrentDisk->PciSubsysVendorId, (UINTN)CurrentDisk->PciSubsysId,
                (UINTN)CurrentDisk->PciClass, (UINTN)CurrentDisk->PciSubclass, (UINTN)CurrentDisk->PciProgIF,
-               SizeGB, TransportName(CurrentDisk->Transport));
+               SizeGB, CurrentDisk->BlockIo2 ? L"YES" : L"NO", TransportName(CurrentDisk->Transport));
         EFISPrint(Ctx->ST->ConOut, line);
     }
 
@@ -226,7 +225,6 @@ EFI_STATUS MarkBootDevice(SHELL_CONTEXT *Ctx)
         }
     }
 
-    // Otherwise DeviceHandle is a partition; find the disk that owns it.
     Status = uefi_call_wrapper(Ctx->ST->BootServices->HandleProtocol, 3,
                                LoadedImage->DeviceHandle, &DevicePathProtocol,
                                (VOID **)&BootPath);
@@ -242,7 +240,7 @@ EFI_STATUS MarkBootDevice(SHELL_CONTEXT *Ctx)
         }
     }
 
-    return EFI_NOT_FOUND; // couldn't identify it -- caller must treat as fatal
+    return EFI_NOT_FOUND;
 }
 
 EFI_STATUS BuildDiskTable(SHELL_CONTEXT *Ctx)
@@ -253,8 +251,6 @@ EFI_STATUS BuildDiskTable(SHELL_CONTEXT *Ctx)
     UINTN Index;
     UINTN DiskNum = 0;
 
-    // Full rebuild every time: a stale entry means wipe could target the
-    // wrong device after a hot-plug.
     ZeroMem(Ctx->Disks, sizeof(Ctx->Disks));
     Ctx->DiskCount = 0;
 
@@ -267,6 +263,7 @@ EFI_STATUS BuildDiskTable(SHELL_CONTEXT *Ctx)
     for (Index = 0; Index < HandleCount; Index++)
     {
         EFI_BLOCK_IO *BlockIo;
+        EFI_BLOCK_IO2_PROTOCOL *BlockIo2;
         EFI_DEVICE_PATH_PROTOCOL *DiskPath, *WalkPath;
         EFI_HANDLE PciHandle;
         EFI_PCI_IO_PROTOCOL *PciIo;
@@ -282,6 +279,12 @@ EFI_STATUS BuildDiskTable(SHELL_CONTEXT *Ctx)
         if (EFI_ERROR(Status))
             continue;
 
+        Status = uefi_call_wrapper(Ctx->ST->BootServices->HandleProtocol, 3,
+                                   HandleBuffer[Index], &BlockIo2Protocol,
+                                   (VOID **)&BlockIo2);
+        if (EFI_ERROR(Status))
+            BlockIo2 = NULL;
+
         if (BlockIo->Media->LogicalPartition)
             continue;
 
@@ -290,6 +293,7 @@ EFI_STATUS BuildDiskTable(SHELL_CONTEXT *Ctx)
         CurrentDisk->Index = DiskNum;
         CurrentDisk->Handle = HandleBuffer[Index];
         CurrentDisk->BlockIo = BlockIo;
+        CurrentDisk->BlockIo2 = BlockIo2;
 
         CurrentDisk->MediaId = BlockIo->Media->MediaId;
         CurrentDisk->BlockSize = BlockIo->Media->BlockSize;

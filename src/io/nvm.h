@@ -1,0 +1,181 @@
+#ifndef _NVME_H_
+#define _NVME_H_
+
+#include "../commands/blockdev.h"
+#include <efi.h>
+
+//
+// EFI_NVM_EXPRESS_PASS_THRU_PROTOCOL, transcribed from the UEFI Specification
+// section 13.15.
+//
+
+#define EFI_NVM_EXPRESS_PASS_THRU_PROTOCOL_GUID \
+    {0x52c78312, 0x8edc, 0x4233, {0x98, 0xf2, 0x1a, 0x1a, 0xa5, 0xe3, 0x88, 0xa5}}
+
+typedef struct _EFI_NVM_EXPRESS_PASS_THRU_PROTOCOL EFI_NVM_EXPRESS_PASS_THRU_PROTOCOL;
+
+// Mode->Attributes bits
+#define EFI_NVM_EXPRESS_PASS_THRU_ATTRIBUTES_PHYSICAL 0x0001
+#define EFI_NVM_EXPRESS_PASS_THRU_ATTRIBUTES_LOGICAL 0x0002
+#define EFI_NVM_EXPRESS_PASS_THRU_ATTRIBUTES_NONBLOCKIO 0x0004
+#define EFI_NVM_EXPRESS_PASS_THRU_ATTRIBUTES_CMD_SET_NVM 0x0008
+
+typedef struct
+{
+    UINT32 Attributes;
+    UINT32 IoAlign;
+    UINT32 NvmeVersion;
+} EFI_NVM_EXPRESS_PASS_THRU_MODE;
+
+typedef struct
+{
+    UINT32 OpCode : 8;
+    UINT32 FusedOperation : 2;
+    UINT32 Reserved : 22;
+} NVME_CDW0;
+
+#define NORMAL_CMD 0x00
+#define FUSED_FIRST_CMD 0x01
+#define FUSED_SECOND_CMD 0x02
+
+typedef struct
+{
+    NVME_CDW0 Cdw0;
+    UINT8 Flags;
+    UINT32 Nsid;
+    UINT32 Cdw2;
+    UINT32 Cdw3;
+    UINT32 Cdw10;
+    UINT32 Cdw11;
+    UINT32 Cdw12;
+    UINT32 Cdw13;
+    UINT32 Cdw14;
+    UINT32 Cdw15;
+} EFI_NVM_EXPRESS_COMMAND;
+
+#define CDW2_VALID 0x01
+#define CDW3_VALID 0x02
+#define CDW10_VALID 0x04
+#define CDW11_VALID 0x08
+#define CDW12_VALID 0x10
+#define CDW13_VALID 0x20
+#define CDW14_VALID 0x40
+#define CDW15_VALID 0x80
+
+typedef struct
+{
+    UINT32 DW0;
+    UINT32 DW1;
+    UINT32 DW2;
+    UINT32 DW3;
+} EFI_NVM_EXPRESS_COMPLETION;
+
+typedef struct
+{
+    UINT64 CommandTimeout;
+    VOID *TransferBuffer;
+    UINT32 TransferLength;
+    VOID *MetadataBuffer;
+    UINT32 MetadataLength;
+    UINT8 QueueType; // 0 = Admin, 1 = I/O
+    EFI_NVM_EXPRESS_COMMAND *NvmeCmd;
+    EFI_NVM_EXPRESS_COMPLETION *NvmeCompletion;
+} EFI_NVM_EXPRESS_PASS_THRU_COMMAND_PACKET;
+
+typedef EFI_STATUS(EFIAPI *EFI_NVM_EXPRESS_PASS_THRU_PASSTHRU)(
+    IN EFI_NVM_EXPRESS_PASS_THRU_PROTOCOL *This,
+    IN UINT32 NamespaceId,
+    IN OUT EFI_NVM_EXPRESS_PASS_THRU_COMMAND_PACKET *Packet,
+    IN EFI_EVENT Event OPTIONAL);
+
+typedef EFI_STATUS(EFIAPI *EFI_NVM_EXPRESS_PASS_THRU_GET_NEXT_NAMESPACE)(
+    IN EFI_NVM_EXPRESS_PASS_THRU_PROTOCOL *This,
+    IN OUT UINT32 *NamespaceId);
+
+typedef EFI_STATUS(EFIAPI *EFI_NVM_EXPRESS_PASS_THRU_BUILD_DEVICE_PATH)(
+    IN EFI_NVM_EXPRESS_PASS_THRU_PROTOCOL *This,
+    IN UINT32 NamespaceId,
+    IN OUT EFI_DEVICE_PATH_PROTOCOL **DevicePath);
+
+typedef EFI_STATUS(EFIAPI *EFI_NVM_EXPRESS_PASS_THRU_GET_NAMESPACE)(
+    IN EFI_NVM_EXPRESS_PASS_THRU_PROTOCOL *This,
+    IN EFI_DEVICE_PATH_PROTOCOL *DevicePath,
+    OUT UINT32 *NamespaceId);
+
+struct _EFI_NVM_EXPRESS_PASS_THRU_PROTOCOL
+{
+    EFI_NVM_EXPRESS_PASS_THRU_MODE *Mode;
+    EFI_NVM_EXPRESS_PASS_THRU_PASSTHRU PassThru;
+    EFI_NVM_EXPRESS_PASS_THRU_GET_NEXT_NAMESPACE GetNextNamespace;
+    EFI_NVM_EXPRESS_PASS_THRU_BUILD_DEVICE_PATH BuildDevicePath;
+    EFI_NVM_EXPRESS_PASS_THRU_GET_NAMESPACE GetNamespace;
+};
+
+#define NVME_ADMIN_QUEUE 0
+#define NVME_ALL_NAMESPACES 0xFFFFFFFF
+
+#define NVME_TIMEOUT_SECONDS(s) ((UINT64)(s) * 10 * 1000 * 1000)
+#define NVME_ADMIN_TIMEOUT NVME_TIMEOUT_SECONDS(5)
+#define NVME_SANITIZE_TIMEOUT NVME_TIMEOUT_SECONDS(60)
+#define NVME_FORMAT_TIMEOUT NVME_TIMEOUT_SECONDS(60 * 60)
+
+//
+// NVMe admin opcodes (NVMe Base Spec)
+//
+#define NVME_ADMIN_GET_LOG_PAGE 0x02
+#define NVME_ADMIN_IDENTIFY 0x06
+#define NVME_ADMIN_FORMAT_NVM 0x80
+#define NVME_ADMIN_SANITIZE 0x84
+
+// Identify CNS values
+#define NVME_CNS_NAMESPACE 0x00
+#define NVME_CNS_CONTROLLER 0x01
+#define NVME_CNS_ACTIVE_NS_LIST 0x02
+
+// Identify Controller OACS (bytes 256..257)
+#define NVME_OACS_FORMAT (1 << 1)
+
+// Identify Controller SANICAP (bytes 328..331)
+#define NVME_SANICAP_CRYPTO_ERASE (1 << 0)
+#define NVME_SANICAP_BLOCK_ERASE (1 << 1)
+#define NVME_SANICAP_OVERWRITE (1 << 2)
+
+// Identify Controller FNA (byte 524): format / secure erase hit every namespace
+#define NVME_FNA_FORMAT_ALL_NS (1 << 0)
+#define NVME_FNA_ERASE_ALL_NS (1 << 1)
+
+// Identify Namespace DLFEAT (byte 33) bits 2:0: what deallocated blocks read as
+#define NVME_DLFEAT_READ_MASK 0x07
+#define NVME_DLFEAT_READS_ZERO 0x01
+#define NVME_DLFEAT_READS_ONES 0x02
+
+// Format NVM CDW10 Secure Erase Settings
+#define NVME_SES_USER_DATA_ERASE 1
+
+// Sanitize CDW10 Sanitize Action
+#define NVME_SANACT_BLOCK_ERASE 2
+#define NVME_SANACT_OVERWRITE 3
+#define NVME_SANACT_CRYPTO_ERASE 4
+
+// Sanitize Status log page and its SSTAT bits 2:0
+#define NVME_LOG_SANITIZE_STATUS 0x81
+#define NVME_LOG_SANITIZE_STATUS_SIZE 512
+#define NVME_SSTAT_MASK 0x07
+#define NVME_SSTAT_COMPLETED 1
+#define NVME_SSTAT_IN_PROGRESS 2
+#define NVME_SSTAT_FAILED 3
+#define NVME_SSTAT_COMPLETED_NO_DEALLOC 4
+
+EFI_STATUS NvmeGetPassThru(SHELL_CONTEXT *Ctx, DISK *Disk,
+                           EFI_NVM_EXPRESS_PASS_THRU_PROTOCOL **OutPt,
+                           UINT32 *OutNsid);
+VOID NvmStringToChar16(UINT16 *Id, UINTN WordOffset, UINTN WordCount, CHAR16 *Out);
+EFI_STATUS NvmeCountHandles(SHELL_CONTEXT *Ctx);
+EFI_STATUS NvmeIdentifyController(SHELL_CONTEXT *Ctx, DISK *Disk);
+EFI_STATUS NvmeIdentifyNamespace(SHELL_CONTEXT *Ctx, DISK *Disk);
+EFI_STATUS NvmePopulateTable(SHELL_CONTEXT *Ctx);
+EFI_STATUS NvmeFormat(SHELL_CONTEXT *Ctx, DISK *Disk, UINT32 Ses, UINT16 *OutNvmeStatus);
+EFI_STATUS NvmeSanitizeStart(SHELL_CONTEXT *Ctx, DISK *Disk, UINT32 Action, UINT16 *OutNvmeStatus);
+EFI_STATUS NvmeSanitizeStatus(SHELL_CONTEXT *Ctx, DISK *Disk, UINT16 *OutProgress, UINT16 *OutStatus);
+
+#endif

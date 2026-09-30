@@ -20,6 +20,7 @@ typedef struct
     BOOLEAN All;
     BOOLEAN Execute;
     BOOLEAN Interactive;
+    BOOLEAN NoAsync;
 } WIPE_ARGS;
 
 struct _SHELL_CONTEXT;

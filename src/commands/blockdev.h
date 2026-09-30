@@ -10,6 +10,7 @@
 #include "../io/vendors.h"
 
 struct _EFI_ATA_PASS_THRU_PROTOCOL;
+struct _EFI_NVM_EXPRESS_PASS_THRU_PROTOCOL;
 
 typedef enum
 {
@@ -25,6 +26,7 @@ typedef struct
 
     EFI_HANDLE Handle;
     EFI_BLOCK_IO *BlockIo;
+    EFI_BLOCK_IO2_PROTOCOL *BlockIo2;
     EFI_DEVICE_PATH_PROTOCOL *DevicePath;
     UINT32 MediaId;
     UINT32 BlockSize;
@@ -60,15 +62,32 @@ typedef struct
     BOOLEAN SecuritySupported;
     BOOLEAN SecurityFrozen;
     BOOLEAN EnhancedEraseSupported;
-    
+
     // --- safety and selection state ---
     BOOLEAN IsBootDevice;
-    
+
     // --- SSD ATA Sanitize state ---
     BOOLEAN SanitizeSupported;
     BOOLEAN SanitizeCryptoSupported;
     BOOLEAN SanitizeBlockEraseSupported;
     BOOLEAN SanitizeOverwriteSupported;
+
+    // --- NVMe addressing (from Identify Controller / Namespace) ---
+    struct _EFI_NVM_EXPRESS_PASS_THRU_PROTOCOL *NvmePassThru; // NULL if not NVMe-addressable
+    UINT32 NvmeNsid;
+    UINT32 NvmeNamespaceCount; // active namespaces on the controller; 0 = unknown
+    EFI_STATUS NvmeStatus;
+
+    // --- NVMe capability flags ---
+    BOOLEAN NvmeFormatSupported;
+    BOOLEAN NvmeSanitizeSupported;
+    BOOLEAN NvmeSanitizeCryptoSupported;
+    BOOLEAN NvmeSanitizeBlockEraseSupported;
+    BOOLEAN NvmeSanitizeOverwriteSupported;
+    UINT8 NvmeFna;    // Format NVM Attributes
+    UINT8 NvmeFlbas;  // current LBA format, re-issued by Format NVM
+    UINT8 NvmeDps;    // current protection info settings, likewise
+    UINT8 NvmeDlfeat; // what deallocated blocks read back as
 
 } DISK;
 
